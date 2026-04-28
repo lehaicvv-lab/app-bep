@@ -1,0 +1,155 @@
+import { DEFAULT_DEPARTMENTS, STORAGE_PREFIX } from "./constants.js";
+import { emptyAttendancePayload, ensureAttendanceShape, uid } from "./utils.js";
+
+function readJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+export function attendanceKey(date) {
+  return `${STORAGE_PREFIX}attendance_${date}`;
+}
+
+export function departmentCatalogKey() {
+  return `${STORAGE_PREFIX}attendance_departments`;
+}
+
+export function evalStaffKey(period, ref) {
+  return `${STORAGE_PREFIX}eval_staff_${period}_${ref}`;
+}
+
+export function evalMgmtKey(yearMonth) {
+  return `${STORAGE_PREFIX}eval_mgmt_${yearMonth}`;
+}
+
+export function loadAttendance(date) {
+  const catalog = loadDepartmentCatalog();
+  const key = attendanceKey(date);
+  const raw = readJson(key, null);
+  if (!raw) return emptyAttendancePayload(date, "Ca ngày", catalog);
+  const fixed = ensureAttendanceShape({ ...raw, date }, catalog, { includeUnknownDepartments: false });
+  return fixed;
+}
+
+export function saveAttendance(payload) {
+  const key = attendanceKey(payload.date);
+  writeJson(key, payload);
+}
+
+function normalizeDeptName(name, fallback = "Bộ phận") {
+  const t = String(name || "").trim();
+  return t || fallback;
+}
+
+export function loadDepartmentCatalog() {
+  const raw = readJson(departmentCatalogKey(), null);
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return DEFAULT_DEPARTMENTS.map((d) => ({ id: d.id, name: d.name }));
+  }
+  const seen = new Set();
+  const out = [];
+  for (const d of raw) {
+    if (!d || !d.id || seen.has(d.id)) continue;
+    seen.add(d.id);
+    out.push({ id: d.id, name: normalizeDeptName(d.name, "Bộ phận") });
+  }
+  return out.length > 0 ? out : DEFAULT_DEPARTMENTS.map((d) => ({ id: d.id, name: d.name }));
+}
+
+export function saveDepartmentCatalog(list) {
+  const seen = new Set();
+  const cleaned = [];
+  for (const d of Array.isArray(list) ? list : []) {
+    if (!d || !d.id || seen.has(d.id)) continue;
+    seen.add(d.id);
+    cleaned.push({ id: d.id, name: normalizeDeptName(d.name, "Bộ phận") });
+  }
+  if (cleaned.length === 0) {
+    writeJson(departmentCatalogKey(), DEFAULT_DEPARTMENTS.map((d) => ({ id: d.id, name: d.name })));
+    return;
+  }
+  writeJson(departmentCatalogKey(), cleaned);
+}
+
+export function loadEvalStaff(period, ref) {
+  const data = readJson(evalStaffKey(period, ref), { items: [] });
+  return {
+    period,
+    ref,
+    items: Array.isArray(data.items)
+      ? data.items.map((x) => ({
+          id: x.id || uid(),
+          fullName: x.fullName ?? "",
+          deptId: x.deptId ?? "",
+          soChe: Number(x.soChe ?? x.performance) || 0,
+          chiaSuat: Number(x.chiaSuat ?? x.compliance) || 0,
+          fiveS: Number(x.fiveS ?? x.attitude) || 0,
+          thaiDo: Number(x.thaiDo ?? x.attitude) || 0,
+          reportLevel: x.reportLevel ?? "none",
+          reportCount: Number(x.reportCount) || 0,
+          performance: Number(x.performance) || 0,
+          compliance: Number(x.compliance) || 0,
+          attitude: Number(x.attitude) || 0,
+          note: x.note ?? "",
+        }))
+      : [],
+  };
+}
+
+export function saveEvalStaff(payload) {
+  writeJson(evalStaffKey(payload.period, payload.ref), payload);
+}
+
+export function loadEvalMgmt(yearMonth) {
+  const data = readJson(evalMgmtKey(yearMonth), { month: yearMonth, items: [] });
+  return {
+    month: yearMonth,
+    items: Array.isArray(data.items)
+      ? data.items.map((x) => ({
+          id: x.id || uid(),
+          fullName: x.fullName ?? "",
+          deptId: x.deptId ?? "",
+          jobTitle: x.jobTitle ?? "",
+          attendance: Number(x.attendance ?? x.performance) || 0,
+          workMgmt: Number(x.workMgmt ?? x.performance) || 0,
+          qualityControl: Number(x.qualityControl ?? x.compliance) || 0,
+          incidentHandling: Number(x.incidentHandling ?? x.performance) || 0,
+          peopleMgmt: Number(x.peopleMgmt ?? x.compliance) || 0,
+          reporting: Number(x.reporting ?? x.compliance) || 0,
+          attitude: Number(x.attitude) || 0,
+          hasVsattpViolation: Boolean(x.hasVsattpViolation),
+          hasSeriousIncident: Boolean(x.hasSeriousIncident),
+          hasCustomerComplaint: Boolean(x.hasCustomerComplaint),
+          performance: Number(x.performance) || 0,
+          compliance: Number(x.compliance) || 0,
+          note: x.note ?? "",
+        }))
+      : [],
+  };
+}
+
+export function saveEvalMgmt(payload) {
+  writeJson(evalMgmtKey(payload.month), payload);
+}
+
+/** Liệt kê các ngày có file điểm danh trong localStorage */
+export function listAttendanceDates() {
+  const prefix = `${STORAGE_PREFIX}attendance_`;
+  const out = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(prefix)) continue;
+    const d = k.slice(prefix.length);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) out.push(d);
+  }
+  return out.sort();
+}

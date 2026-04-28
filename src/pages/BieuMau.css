@@ -1,0 +1,772 @@
+.company-forms-page {
+  padding: 16px;
+}
+
+.company-form-card {
+  background: #fff;
+  border: 1px solid #d7eadc;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.company-form-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.company-form-eyebrow {
+  color: #20874d;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.company-form-head h1 {
+  margin: 4px 0 0;
+  color: #165f38;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.company-form-block--violation-head {
+  margin-top: 4px;
+  background: #fff;
+  border-color: #dfe7e2;
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.company-form-fields--violation-head {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.company-form-fields--violation-head .company-field > span {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4a6356;
+}
+
+.company-form-fields--violation-head .company-input {
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 10px;
+}
+
+.company-form-rows--violation-head {
+  display: grid;
+  gap: 8px;
+}
+
+.company-form-row--two-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.company-textarea--violation {
+  min-height: 100px;
+}
+
+.company-form-block--notice {
+  background: #fff;
+  border-color: #d8e8df;
+  border-radius: 14px;
+  box-shadow: 0 1px 0 rgba(20, 72, 45, 0.05);
+}
+
+.company-form-block--notice .company-block-title {
+  font-size: 18px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e6f1eb;
+}
+
+.company-field--notice > span {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4b6658;
+}
+
+.company-form-fields--notice-top {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.company-textarea--notice {
+  min-height: 112px;
+}
+
+.company-workplan-wrap {
+  overflow-x: auto;
+}
+
+.company-workplan-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.company-workplan-table th,
+.company-workplan-table td {
+  border: 1px solid #dcebe2;
+  padding: 6px;
+  vertical-align: top;
+}
+
+.company-workplan-table th {
+  background: #edf8f0;
+  color: #1e5738;
+  font-weight: 700;
+}
+
+.company-workplan-add {
+  margin-top: 8px;
+}
+
+.company-form-fields--violation-sign {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.company-form-fields--violation-sign .company-field > span {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4a6356;
+}
+
+.company-form-fields--violation-sign .company-input {
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.company-form-head-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.company-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.company-form-block {
+  margin-top: 12px;
+  border: 1px solid #deede4;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f9fdfa;
+}
+
+.company-block-title {
+  color: #1e5f3b;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.company-form-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.company-field {
+  display: grid;
+  gap: 6px;
+}
+
+.company-field.wide {
+  grid-column: 1 / -1;
+}
+
+.company-field > span {
+  color: #2f5845;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.company-input,
+.company-textarea {
+  width: 100%;
+  border: 1px solid #b9d7c6;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  color: #18422f;
+  background: #fff;
+}
+
+.company-input:focus,
+.company-textarea:focus {
+  outline: none;
+  border-color: #33a05f;
+  box-shadow: 0 0 0 3px rgba(51, 160, 95, 0.14);
+}
+
+.company-textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.company-form-history {
+  margin-top: 14px;
+  border: 1px solid #deede4;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.company-history-top {
+  margin-bottom: 8px;
+}
+
+.company-history-table-wrap {
+  overflow-x: auto;
+}
+
+.company-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 880px;
+}
+
+.company-history-table th,
+.company-history-table td {
+  border: 1px solid #dcebe2;
+  padding: 8px;
+  text-align: left;
+}
+
+.company-history-table th {
+  background: #edf8f0;
+  color: #1e5738;
+  font-weight: 700;
+}
+
+.company-link {
+  border: 0;
+  background: transparent;
+  color: #1f8f4e;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.company-empty {
+  text-align: center;
+  color: #6b8678;
+}
+
+.company-form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.company-btn {
+  border-radius: 10px;
+  border: 1px solid #a8cfb8;
+  background: #fff;
+  color: #1e5f3b;
+  padding: 9px 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.company-btn--icon {
+  width: 58px;
+  height: 46px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.company-btn:hover {
+  background: #eff9f2;
+}
+
+.company-btn--primary {
+  background: #20934f;
+  color: #fff;
+  border-color: #20934f;
+}
+
+.company-btn--primary:hover {
+  background: #187d42;
+}
+
+.company-msg {
+  color: #20934f;
+  font-weight: 700;
+}
+
+.company-form-print {
+  display: none;
+}
+
+.company-form-print--preview {
+  display: block;
+  margin-top: 12px;
+}
+
+.print-explanation-document {
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+  padding: 18mm;
+  font-family: "Times New Roman", Times, serif;
+  line-height: 1.5;
+}
+
+.print-explanation-header {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.print-explanation-header .logo {
+  width: 60px;
+  height: 60px;
+  border: 1px solid #000;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+.print-explanation-header .meta {
+  flex: 1;
+}
+
+.print-explanation-header .company-name {
+  font-weight: 700;
+}
+
+.print-explanation-header .company-sub {
+  font-weight: 700;
+}
+
+.print-explanation-title {
+  text-align: center;
+  font-weight: 700;
+  font-size: 22px;
+  margin-top: 10px;
+}
+
+.print-explanation-sub {
+  text-align: center;
+  margin-top: 4px;
+  margin-bottom: 10px;
+}
+
+.print-explanation-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0 10px;
+}
+
+.print-explanation-table th,
+.print-explanation-table td {
+  border: 1px solid #000;
+  padding: 6px;
+  vertical-align: top;
+}
+
+.print-explanation-sign {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.print-explanation-sign .sign-col {
+  text-align: center;
+  min-height: 90px;
+}
+
+.print-statement-document {
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+  padding: 18mm;
+  font-family: "Times New Roman", Times, serif;
+  line-height: 1.5;
+}
+
+.print-statement-title {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 12px 0;
+}
+
+.print-statement-sign {
+  text-align: center;
+  margin-top: 24px;
+  min-height: 90px;
+}
+
+.print-notice-document {
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+  padding: 18mm;
+  font-family: "Times New Roman", Times, serif;
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.print-notice-title {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  margin: 14px 0 4px;
+}
+
+.print-notice-sign {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.print-notice-sign .sign-col {
+  text-align: center;
+  min-height: 90px;
+}
+
+.print-admin-top {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.print-admin-top .right {
+  text-align: center;
+}
+
+.print-admin-top .line {
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.print-notice-meta {
+  margin-bottom: 10px;
+  font-style: italic;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.print-text-block {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+  font-family: "Times New Roman", Times, serif;
+  line-height: 1.5;
+}
+
+.print-notice-receivers {
+  margin-top: 6px;
+}
+
+.print-notice-document p {
+  margin: 6px 0;
+}
+
+@media (max-width: 1080px) {
+  .company-form-head {
+    flex-direction: column;
+  }
+
+  .company-form-head-controls {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .company-form-grid,
+  .company-form-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .company-form-fields--notice-top {
+    grid-template-columns: 1fr;
+  }
+
+  .company-form-fields--violation-head .company-input {
+    min-height: 40px;
+    font-size: 14px;
+  }
+
+  .company-form-fields--violation-head,
+  .company-form-fields--violation-sign {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .company-form-row--two-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  .no-print,
+  .sidebar,
+  .app-sidebar,
+  .app-header,
+  nav,
+  aside,
+  button {
+    display: none !important;
+  }
+
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: "Times New Roman", Times, serif !important;
+  }
+
+  .company-forms-page {
+    padding: 0 !important;
+  }
+
+  .company-form-card {
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .company-form-print {
+    display: block !important;
+    color: #000;
+    font-size: 14px;
+  }
+
+  .company-print-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .company-print-company {
+    line-height: 1.45;
+    max-width: 56%;
+  }
+
+  .company-print-national {
+    text-align: center;
+    min-width: 270px;
+    line-height: 1.4;
+  }
+
+  .company-print-title {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  .company-print-sub {
+    text-align: center;
+    margin-top: 6px;
+    margin-bottom: 12px;
+    font-style: italic;
+  }
+
+  .company-print-info,
+  .company-print-fields {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+  }
+
+  .company-print-info td,
+  .company-print-fields td {
+    border: 1px solid #000;
+    padding: 6px 8px;
+    vertical-align: top;
+  }
+
+  .company-print-fields .stt {
+    width: 40px;
+    text-align: center;
+  }
+
+  .company-print-fields .label {
+    width: 240px;
+    font-weight: 700;
+  }
+
+  .company-print-sign {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .company-sign-col {
+    text-align: center;
+    min-height: 90px;
+  }
+
+  .company-print-violation {
+    border: 1px solid #000;
+    padding: 10px;
+  }
+
+  .company-print-violation p {
+    margin: 4px 0;
+    line-height: 1.45;
+    text-align: left;
+  }
+
+  .company-print-violation-head {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+  }
+
+  .company-print-violation-head td {
+    border: 1px solid #000;
+    padding: 6px 8px;
+    text-align: center;
+    font-weight: 700;
+  }
+
+  .company-print-violation-head td.logo {
+    width: 20%;
+    font-weight: 400;
+  }
+
+  .company-logo {
+    max-width: 100%;
+    max-height: 44px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+  }
+
+  .company-logo--top {
+    margin: 0 0 6px;
+    max-height: 52px;
+  }
+
+  .company-print-violation-sign {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+
+  .company-print-violation-sign th,
+  .company-print-violation-sign td {
+    border: 1px solid #000;
+    text-align: center;
+    vertical-align: top;
+    padding: 6px 6px;
+  }
+
+  .company-print-violation-sign th {
+    font-weight: 700;
+  }
+
+  .company-print-violation-sign tbody td {
+    height: 70px;
+    font-style: italic;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
+  body.explanation-print-mode * {
+    visibility: hidden !important;
+  }
+
+  body.explanation-print-mode .print-explanation-document,
+  body.explanation-print-mode .print-explanation-document * {
+    visibility: visible !important;
+  }
+
+  body.explanation-print-mode .print-explanation-document {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    min-height: 297mm;
+    box-sizing: border-box;
+    background: #fff;
+    color: #000;
+    border: 1px solid #000;
+    padding: 18mm;
+    font-family: "Times New Roman", Times, serif;
+    line-height: 1.5;
+  }
+
+  body.statement-print-mode * {
+    visibility: hidden !important;
+  }
+
+  body.statement-print-mode .print-statement-document,
+  body.statement-print-mode .print-statement-document * {
+    visibility: visible !important;
+  }
+
+  body.statement-print-mode .print-statement-document {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    min-height: 297mm;
+    box-sizing: border-box;
+    background: #fff;
+    color: #000;
+    border: 1px solid #000;
+    padding: 18mm;
+    font-family: "Times New Roman", Times, serif;
+    line-height: 1.5;
+  }
+
+  body.notice-print-mode * {
+    visibility: hidden !important;
+  }
+
+  body.notice-print-mode .print-notice-document,
+  body.notice-print-mode .print-notice-document * {
+    visibility: visible !important;
+  }
+
+  body.notice-print-mode .print-notice-document {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    min-height: 297mm;
+    box-sizing: border-box;
+    background: #fff;
+    color: #000;
+    border: 1px solid #000;
+    padding: 18mm;
+    font-family: "Times New Roman", Times, serif;
+    line-height: 1.5;
+  }
+}
