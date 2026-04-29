@@ -70,6 +70,12 @@ function rateSeverityClass(rate) {
   return "rate-danger";
 }
 
+function normalizeNonNegativeNumber(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, n);
+}
+
 export default function CCDCInventory({
   regions,
   locations,
@@ -286,10 +292,11 @@ export default function CCDCInventory({
   }
 
   function upsertMonthly(rowId, actualQty, note) {
+    const safeQty = normalizeNonNegativeNumber(actualQty);
     const old = getMonthly(rowId);
     const now = new Date().toISOString();
     if (old) {
-      onSaveMonthly(monthly.map((x) => (x.id === old.id ? { ...x, actualQty, note, updatedAt: now } : x)));
+      onSaveMonthly(monthly.map((x) => (x.id === old.id ? { ...x, actualQty: safeQty, note, updatedAt: now } : x)));
       return;
     }
     onSaveMonthly([
@@ -297,7 +304,7 @@ export default function CCDCInventory({
         id: uid(),
         rowId,
         monthKey: currentMonth,
-        actualQty,
+        actualQty: safeQty,
         note: note || "",
         checkDate: inventoryDate,
         shift,
@@ -320,10 +327,10 @@ export default function CCDCInventory({
     const raw = String(receiptDraft.qty ?? "").trim();
     if (raw === "") return;
     const qty = Number(raw.replace(",", "."));
-    if (Number.isNaN(qty)) return;
+    if (Number.isNaN(qty) || qty <= 0) return;
     const rawPrice = String(receiptDraft.unitPrice ?? "").trim();
     const unitPrice = rawPrice === "" ? 0 : Number(rawPrice.replace(",", "."));
-    if (Number.isNaN(unitPrice)) return;
+    if (Number.isNaN(unitPrice) || unitPrice < 0) return;
     const totalCost = qty * unitPrice;
     savingReceiptRef.current = true;
     try {

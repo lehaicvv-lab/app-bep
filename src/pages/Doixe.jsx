@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import ModuleShell from "../components/ModuleShell.jsx";
+import { useMasterCatalogSnapshot } from "../systemCatalog/useMasterCatalogSnapshot.js";
 
 const STORAGE_KEY = "sky_ops_doi_xe_nhat_ky_v5";
 const WEEKLY_STORAGE_KEY = "sky_ops_doi_xe_lich_tuan_v2";
@@ -24,11 +26,6 @@ const INCIDENT_DETAIL_SUGGESTIONS = [
   "Cứu hộ 24/7",
   "Thay nhớt",
 ];
-const SCHEDULE_CA_OPTIONS = [
-  { value: "ca1", label: "Ca 1" },
-  { value: "ca2", label: "Ca 2" },
-];
-
 const XE_OPTIONS = ["60C53518", "60C60959", "60H04281", "60K73144"];
 
 const DRIVER_OPTIONS = [
@@ -95,12 +92,6 @@ const TAB_OPTIONS = [
   { key: "lichtuan", label: "Lịch trình tuần" },
   { key: "kiemtra", label: "Kiểm tra xe" },
   { key: "tonghop", label: "Tổng hợp tháng" },
-];
-
-const CA_OPTIONS = [
-  { value: "ca1", label: "Ca 1" },
-  { value: "ca2", label: "Ca 2" },
-  { value: "ca3", label: "Ca 3" },
 ];
 
 const LOAI_CHUYEN_OPTIONS = [
@@ -769,6 +760,29 @@ function saveRecords(records) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 }
 
+function journalStorageKey(date, vehicle) {
+  const d = String(date || "").trim();
+  const v = String(vehicle || "").trim().toUpperCase();
+  if (!d) return "";
+  return v ? `${d}__${v}` : d;
+}
+
+function extractJournalDate(key, item) {
+  const valueDate = String(item?.ngay || "").trim();
+  if (valueDate) return valueDate;
+  const rawKey = String(key || "");
+  if (rawKey.includes("__")) return rawKey.split("__")[0];
+  return rawKey;
+}
+
+function listJournalEntries(records) {
+  return Object.entries(records).map(([key, item]) => ({
+    key,
+    item,
+    date: extractJournalDate(key, item),
+  }));
+}
+
 function readWeeklyRecords() {
   try {
     return JSON.parse(localStorage.getItem(WEEKLY_STORAGE_KEY) || "[]");
@@ -900,11 +914,11 @@ function toWeeklyIssueRecords(inspectionForm) {
 function getPreviousRecord(records, currentDate, currentXe) {
   if (!currentDate || !currentXe) return null;
 
-  const items = Object.entries(records)
-    .filter(([date, item]) => date < currentDate && item.xe === currentXe && item.odo)
-    .sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  const items = listJournalEntries(records)
+    .filter((entry) => entry.date < currentDate && entry.item?.xe === currentXe && entry.item?.odo)
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
 
-  return items.length ? items[0][1] : null;
+  return items.length ? items[0].item : null;
 }
 
 function getMetrics(form, records) {
@@ -1052,10 +1066,6 @@ function getLoaiChuyenLabel(value) {
   return LOAI_CHUYEN_OPTIONS.find((item) => item.value === value)?.label || "-";
 }
 
-function getCaLabel(value) {
-  return CA_OPTIONS.find((item) => item.value === value)?.label || "-";
-}
-
 function buildWeeklyWarnings(form, records, editingId = "") {
   const warnings = [];
 
@@ -1120,6 +1130,16 @@ function buildWeekSummary(items) {
 }
 
 export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
+  const masterCat = useMasterCatalogSnapshot();
+  const scheduleCaOptions = useMemo(() => {
+    const label1 = masterCat.shifts.find((s) => s.id === "ca1")?.name || "Ca 1";
+    const label2 = masterCat.shifts.find((s) => s.id === "ca2")?.name || "Ca 2";
+    return [
+      { value: "ca1", label: label1 },
+      { value: "ca2", label: label2 },
+    ];
+  }, [masterCat]);
+
   const getSafeTab = (targetTab) =>
     TAB_OPTIONS.some((item) => item.key === targetTab) ? targetTab : "nhatky";
   const [tab, setTab] = useState(getSafeTab(initialTab));
@@ -1158,7 +1178,10 @@ export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
   const weeklyIssueRecords = useMemo(() => readWeeklyIssueRecords(), [weeklyIssueVersion]);
 
   const sortedRecords = useMemo(() => {
-    return Object.entries(records).sort((a, b) => (a[0] < b[0] ? 1 : -1));
+    return listJournalEntries(records).sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return new Date(b.item?.updatedAt || 0) - new Date(a.item?.updatedAt || 0);
+    });
   }, [records]);
 
   const stats = useMemo(() => {
@@ -1354,9 +1377,15 @@ export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
 
   const handleDateChange = (newDate) => {
     const allRecords = readRecords();
+    const sameDateRows = listJournalEntries(allRecords)
+      .filter((entry) => entry.date === newDate)
+      .sort((a, b) => new Date(b.item?.updatedAt || 0) - new Date(a.item?.updatedAt || 0));
     if (allRecords[newDate]) {
       setForm(allRecords[newDate]);
       setSaveMessage(`Đã tải dữ liệu ngày ${formatDate(newDate)}.`);
+    } else if (sameDateRows.length > 0) {
+      setForm(sameDateRows[0].item);
+      setSaveMessage(`Đã tải dữ liệu gần nhất ngày ${formatDate(newDate)}.`);
     } else {
       setForm(createDefaultForm(newDate));
       setSaveMessage(`Ngày ${formatDate(newDate)} chưa có dữ liệu, đang tạo form mới.`);
@@ -1396,13 +1425,19 @@ export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
       donGiaDo: form.donGiaDo?.toString() || "",
       giaSuCoKyThuat: form.giaSuCoKyThuat?.toString() || "",
       chiTietSuCoKyThuat: form.chiTietSuCoKyThuat?.toString().trim() || "",
+      updatedAt: new Date().toISOString(),
     };
 
     const allRecords = readRecords();
-    allRecords[form.ngay] = payload;
+    const recordKey = journalStorageKey(form.ngay, form.xe);
+    if (!recordKey) {
+      setSaveMessage("Không thể lưu do thiếu ngày nhật ký.");
+      return;
+    }
+    allRecords[recordKey] = payload;
     saveRecords(allRecords);
     setRecordsVersion((v) => v + 1);
-    setSaveMessage(`Đã lưu nhật ký ngày ${formatDate(form.ngay)}.`);
+    setSaveMessage(`Đã lưu nhật ký ${form.xe} ngày ${formatDate(form.ngay)}.`);
   };
 
   const handleReset = () => {
@@ -1410,9 +1445,9 @@ export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
     setSaveMessage("Đã làm mới form của ngày đang chọn.");
   };
 
-  const handleOpenRecord = (date, item) => {
+  const handleOpenRecord = (_, item) => {
     setForm(item);
-    setSaveMessage(`Đã mở lại dữ liệu ngày ${formatDate(date)}.`);
+    setSaveMessage(`Đã mở lại dữ liệu ngày ${formatDate(item.ngay)}.`);
   };
 
   const handleWeeklyFieldChange = (field, value) => {
@@ -1736,6 +1771,16 @@ export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
       }));
 
     const current = readWeeklyRecords();
+    const replacingRows = current.filter((item) => item.xe === vehicle.plate && weekDates.has(item.ngay));
+    if (replacingRows.length > 0) {
+      const ok = window.confirm(
+        `Xe ${vehicle.plate} đang có ${replacingRows.length} dòng lịch trong tuần này. Bạn có chắc muốn ghi đè bằng dữ liệu mới?`
+      );
+      if (!ok) {
+        setWeeklyMessage("Đã hủy thao tác ghi đè lịch tuần.");
+        return;
+      }
+    }
     const others = current.filter((item) => !(item.xe === vehicle.plate && weekDates.has(item.ngay)));
     const finalRecords = [...others, ...payloadRows];
     saveWeeklyRecords(finalRecords);
@@ -1893,9 +1938,21 @@ export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
     }
     const issueRecords = toWeeklyIssueRecords(inspectionForm);
     const existing = readWeeklyIssueRecords();
-    saveWeeklyIssueRecords([...existing, ...issueRecords]);
+    const seen = new Set(
+      existing.map(
+        (x) =>
+          `${x.ngayPhatHien || ""}|${x.bienSo || x.xe || ""}|${x.maMuc || ""}|${x.loiPhatHien || ""}`
+      )
+    );
+    const uniqueNew = issueRecords.filter((x) => {
+      const key = `${x.ngayPhatHien || ""}|${x.bienSo || x.xe || ""}|${x.maMuc || ""}|${x.loiPhatHien || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    saveWeeklyIssueRecords([...existing, ...uniqueNew]);
     setWeeklyIssueVersion((v) => v + 1);
-    setInspectionMessage(`Đã chuyển ${issueRecords.length} lỗi sang theo dõi tuần.`);
+    setInspectionMessage(`Đã chuyển ${uniqueNew.length}/${issueRecords.length} lỗi sang theo dõi tuần.`);
   };
 
   useEffect(() => {
@@ -1909,29 +1966,17 @@ export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
   }, [tab, onTabChange]);
 
   return (
-    <div className="dx-page">
+    <div className="dx-page ops-standard-page">
       <div className="dx-shell">
-        <div className="dx-hero">
-          <div className="dx-hero-main">
-            <h1>Quản lý đội xe</h1>
-            <p>Theo dõi vận hành xe, quãng đường, tiêu hao nhiên liệu và cảnh báo bất thường.</p>
-          </div>
-
-          <div className="dx-stats">
-            <div className="dx-stat-card">
-              <span className="dx-stat-label">Tổng nhật ký</span>
-              <strong>{stats.tongNhatKy}</strong>
-            </div>
-            <div className="dx-stat-card">
-              <span className="dx-stat-label">Xe hoạt động</span>
-              <strong>{stats.tongXeCoMat}</strong>
-            </div>
-            <div className="dx-stat-card dx-stat-card-alert">
-              <span className="dx-stat-label">Cảnh báo / sự cố</span>
-              <strong>{stats.tongCanhBao}</strong>
-            </div>
-          </div>
-        </div>
+        <ModuleShell
+          title="Quản lý đội xe"
+          subtitle="Theo dõi vận hành xe, quãng đường, tiêu hao nhiên liệu và cảnh báo bất thường."
+          stats={[
+            { label: "Tổng nhật ký", value: stats.tongNhatKy },
+            { label: "Xe hoạt động", value: stats.tongXeCoMat },
+            { label: "Cảnh báo / sự cố", value: stats.tongCanhBao, tone: "danger" },
+          ]}
+        />
 
         {tab === "nhatky" && (
           <>
@@ -2165,16 +2210,17 @@ export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
                 <div className="dx-empty">Chưa có dữ liệu.</div>
               ) : (
                 <div className="dx-history-list">
-                  {sortedRecords.map(([date, item]) => {
+                    {sortedRecords.map((entry) => {
+                      const { key, item, date } = entry;
                     const baseBadges = buildBadges(item);
                     const extraMetrics = getHistoryMetrics(item, records);
 
                     return (
                       <button
-                        key={date}
+                          key={key}
                         type="button"
                         className="dx-history-item"
-                        onClick={() => handleOpenRecord(date, item)}
+                          onClick={() => handleOpenRecord(date, item)}
                       >
                         <div className="dx-history-left">
                           <div className="dx-history-date">{formatDate(date)}</div>
@@ -2439,7 +2485,7 @@ export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
                             </button>
                           </div>
 
-                          {SCHEDULE_CA_OPTIONS.map((caItem) => (
+                          {scheduleCaOptions.map((caItem) => (
                             <div key={caItem.value} className="dx-week-ca-block">
                               <div className="dx-week-ca-head">
                                 <h3>{caItem.label}</h3>

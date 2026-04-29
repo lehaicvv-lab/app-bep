@@ -26,7 +26,23 @@ export default function TransferHistory({ rows, equipmentRows, ccdcRows, locatio
   }
 
   function add() {
-    if (!form.itemId) return;
+    if (!form.itemId) {
+      window.alert("Vui lòng chọn vật tư/thiết bị.");
+      return;
+    }
+    if (!form.fromLocationId || !form.toLocationId) {
+      window.alert("Vui lòng chọn đủ nơi đi và nơi đến.");
+      return;
+    }
+    if (form.fromLocationId === form.toLocationId) {
+      window.alert("Nơi đi và nơi đến không được trùng nhau.");
+      return;
+    }
+    const qty = Number(form.qty || 0);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      window.alert("Số lượng điều chuyển phải lớn hơn 0.");
+      return;
+    }
     const item = itemOptions.find((x) => x.id === form.itemId);
     const now = new Date().toISOString();
     const row = {
@@ -37,7 +53,7 @@ export default function TransferHistory({ rows, equipmentRows, ccdcRows, locatio
       itemName: item?.name || item?.itemName || item?.code || "",
       fromLocationId: form.fromLocationId,
       toLocationId: form.toLocationId,
-      qty: Number(form.qty || 0),
+      qty,
       receiver: form.receiver,
       reason: form.reason,
       note: form.note,
@@ -60,6 +76,8 @@ export default function TransferHistory({ rows, equipmentRows, ccdcRows, locatio
   }
 
   function softDelete(id) {
+    const ok = window.confirm("Xoá dòng điều chuyển này?");
+    if (!ok) return;
     onSaveRows(rows.map((x) => (x.id === id ? { ...x, isDeleted: true, updatedAt: new Date().toISOString() } : x)));
   }
 

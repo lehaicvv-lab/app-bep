@@ -231,6 +231,15 @@ const AttendanceTab = forwardRef(function AttendanceTab({ workDate, onSaved, onS
   }, [data]);
 
   const handleSave = useCallback(() => {
+    for (const dept of data.departments || []) {
+      for (const row of dept.rows || []) {
+        if (!row?.checkIn || !row?.checkOut) continue;
+        if (row.checkOut < row.checkIn) {
+          alert(`Giờ ra phải sau giờ vào: ${row.fullName || "Nhân viên"} (${dept.name}).`);
+          return;
+        }
+      }
+    }
     const payload = { ...data, date: workDate, shift: data.shift };
     saveAttendance(payload);
     onSaved?.();

@@ -1,0 +1,385 @@
+:root {
+  --ops-radius-md: 12px;
+  --ops-radius-lg: 16px;
+  --ops-border: #d1d5db;
+  --ops-border-soft: #e5e7eb;
+  --ops-text: #0f172a;
+  --ops-text-soft: #64748b;
+  --ops-primary: #16a34a;
+  --ops-primary-dark: #15803d;
+  --ops-danger: #dc2626;
+}
+
+.ops-standard-page {
+  color: var(--ops-text);
+  --ops-input-height: 40px;
+}
+
+.ops-standard-page .ops-form-field > label,
+.ops-standard-page .ops-form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ops-text-soft);
+  letter-spacing: 0.02em;
+}
+
+.ops-standard-page .ops-form-control,
+.ops-standard-page input[type="text"],
+.ops-standard-page input[type="date"],
+.ops-standard-page input[type="time"],
+.ops-standard-page input[type="number"],
+.ops-standard-page input[type="month"],
+.ops-standard-page input[type="password"],
+.ops-standard-page select,
+.ops-standard-page textarea {
+  border: 1px solid var(--ops-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ops-text);
+  font-size: 14px;
+  min-height: var(--ops-input-height);
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+
+.ops-standard-page input:focus,
+.ops-standard-page select:focus,
+.ops-standard-page textarea:focus,
+.ops-standard-page .ops-form-control:focus {
+  outline: none;
+  border-color: var(--ops-primary);
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.14);
+}
+
+.ops-standard-page textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.ops-standard-page button {
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.ops-standard-page table {
+  border-collapse: collapse;
+}
+
+.ops-standard-page table th,
+.ops-standard-page table td {
+  vertical-align: middle;
+}
+
+/* Enterprise Level 2 harmonization */
+.ops-standard-page .equipment-title,
+.ops-standard-page .dx-card h2,
+.ops-standard-page .ns-report-title,
+.ops-standard-page .company-form-head h1 {
+  letter-spacing: -0.01em;
+}
+
+.ops-standard-page .equipment-form-grid,
+.ops-standard-page .dx-form-grid,
+.ops-standard-page .ns-report-controls,
+.ops-standard-page .company-form-head-controls {
+  gap: 12px;
+}
+
+.ops-standard-page .equipment-card,
+.ops-standard-page .dx-card,
+.ops-standard-page .ns-report-head,
+.ops-standard-page .company-form-card,
+.ops-standard-page .company-form-block {
+  border: 1px solid var(--ops-border-soft);
+  border-radius: var(--ops-radius-lg);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+  background: #fff;
+}
+
+.ops-standard-page .equipment-card-head,
+.ops-standard-page .dx-card-header,
+.ops-standard-page .dx-history-head,
+.ops-standard-page .company-form-head {
+  border-bottom: 1px solid #ecf0f3;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.ops-standard-page .equipment-actions,
+.ops-standard-page .dx-action-row,
+.ops-standard-page .ns-top-actions,
+.ops-standard-page .company-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ops-standard-page .equipment-btn,
+.ops-standard-page .dx-btn,
+.ops-standard-page .ns-btn,
+.ops-standard-page .company-btn {
+  min-height: 40px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ops-standard-page .equipment-btn--icon,
+.ops-standard-page .dx-inline-btn {
+  min-height: 34px;
+  border-radius: 8px;
+}
+
+.ops-standard-page .equipment-table-wrap,
+.ops-standard-page .dx-week-table-wrap,
+.ops-standard-page .ns-att-accordion-wrap,
+.ops-standard-page .company-table-wrap {
+  border: 1px solid var(--ops-border-soft);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.ops-standard-page .equipment-table thead th,
+.ops-standard-page .dx-week-plan-table thead th,
+.ops-standard-page .ns-table thead th,
+.ops-standard-page .company-table thead th {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ops-standard-page .equipment-table tbody td,
+.ops-standard-page .dx-week-plan-table tbody td,
+.ops-standard-page .ns-table tbody td,
+.ops-standard-page .company-table tbody td {
+  font-size: 13px;
+}
+
+.ops-standard-page .dx-save-chip,
+.ops-standard-page .ns-save-chip,
+.ops-standard-page .company-save-chip {
+  border: 1px solid #d1fae5;
+  background: #f0fdf4;
+  color: #166534;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ops-module-shell {
+  display: grid;
+  gap: 14px;
+  border: 1px solid #dbe4df;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+  padding: 20px;
+}
+
+.ops-module-shell__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #edf2ef;
+  padding-bottom: 12px;
+}
+
+.ops-module-shell__title {
+  margin: 0;
+  font-size: 36px;
+  line-height: 1.08;
+  font-weight: 900;
+  color: #14532d;
+  letter-spacing: -0.01em;
+}
+
+.ops-module-shell__subtitle {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.ops-module-shell__notice {
+  border: 1px solid #d1fae5;
+  background: #f0fdf4;
+  color: #166534;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 10px;
+  min-width: 180px;
+  text-align: right;
+}
+
+.ops-module-shell__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ops-module-shell__stat {
+  border: 1px solid #e5ece8;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+}
+
+.ops-module-shell__stat-label {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.ops-module-shell__stat-value {
+  font-size: 42px;
+  line-height: 1;
+  font-weight: 900;
+  color: #14532d;
+}
+
+.ops-module-shell__stat.is-danger {
+  background: #fff5f5;
+  border-color: #fecaca;
+}
+
+.ops-module-shell__stat.is-danger .ops-module-shell__stat-value {
+  color: #dc2626;
+}
+
+/* Hard sync layer: force cross-module visual consistency */
+.ops-standard-page .equipment-section,
+.ops-standard-page .dx-shell,
+.ops-standard-page .ns-shell,
+.ops-standard-page .company-form-card,
+.ops-standard-page .report-dash-shell {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.ops-standard-page .equipment-title,
+.ops-standard-page .dx-card h2,
+.ops-standard-page .ns-report-title,
+.ops-standard-page .company-form-title,
+.ops-standard-page .report-dash-title {
+  font-size: 42px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+  color: #14532d !important;
+}
+
+.ops-standard-page .equipment-card,
+.ops-standard-page .dx-card,
+.ops-standard-page .company-form-card,
+.ops-standard-page .company-form-block,
+.ops-standard-page .ns-report-head,
+.ops-standard-page .report-dash-shell,
+.ops-standard-page .report-premium-card {
+  border: 1px solid #dbe4df !important;
+  border-radius: 20px !important;
+  background: #ffffff !important;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05) !important;
+}
+
+.ops-standard-page .equipment-card-head,
+.ops-standard-page .dx-card-header,
+.ops-standard-page .dx-history-head,
+.ops-standard-page .company-form-head,
+.ops-standard-page .report-dash-hero {
+  border-bottom: 1px solid #edf2ef !important;
+  margin-bottom: 14px !important;
+  padding-bottom: 12px !important;
+}
+
+.ops-standard-page .equipment-form-grid,
+.ops-standard-page .dx-form-grid,
+.ops-standard-page .ns-report-controls,
+.ops-standard-page .company-form-rows,
+.ops-standard-page .report-dash-row-2 {
+  gap: 14px !important;
+}
+
+.ops-standard-page input[type="text"],
+.ops-standard-page input[type="date"],
+.ops-standard-page input[type="time"],
+.ops-standard-page input[type="number"],
+.ops-standard-page input[type="month"],
+.ops-standard-page input[type="password"],
+.ops-standard-page select {
+  min-height: 42px !important;
+  border-radius: 12px !important;
+  border-color: #cfd8d3 !important;
+  font-size: 14px !important;
+}
+
+.ops-standard-page textarea {
+  border-radius: 12px !important;
+  border-color: #cfd8d3 !important;
+  font-size: 14px !important;
+}
+
+.ops-standard-page .equipment-actions .equipment-btn,
+.ops-standard-page .dx-action-row .dx-btn,
+.ops-standard-page .ns-btn,
+.ops-standard-page .report-toolbar-saas-primary,
+.ops-standard-page .report-toolbar-saas-ghost {
+  min-height: 42px !important;
+  border-radius: 12px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+.ops-standard-page .equipment-table-wrap,
+.ops-standard-page .dx-week-table-wrap,
+.ops-standard-page .ns-att-accordion-wrap,
+.ops-standard-page .report-master-table-wrap {
+  border: 1px solid #e5ece8 !important;
+  border-radius: 14px !important;
+  overflow: auto !important;
+}
+
+.ops-standard-page .equipment-table th,
+.ops-standard-page .dx-week-plan-table th,
+.ops-standard-page .ns-table th,
+.ops-standard-page .report-master-table th,
+.ops-standard-page .report-detail-table th {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+.ops-standard-page .equipment-table td,
+.ops-standard-page .dx-week-plan-table td,
+.ops-standard-page .ns-table td,
+.ops-standard-page .report-master-table td,
+.ops-standard-page .report-detail-table td {
+  font-size: 13px !important;
+}
+
+.ops-standard-page .ops-btn-primary {
+  border: 1px solid var(--ops-primary);
+  background: var(--ops-primary);
+  color: #fff;
+}
+
+.ops-standard-page .ops-btn-secondary {
+  border: 1px solid var(--ops-border);
+  background: #fff;
+  color: #14532d;
+}
+
+.ops-standard-page .ops-btn-danger {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: var(--ops-danger);
+}
+
+.ops-standard-page .ops-card {
+  border: 1px solid var(--ops-border-soft);
+  border-radius: var(--ops-radius-lg);
+  background: #fff;
+}

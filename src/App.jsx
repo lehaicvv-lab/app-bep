@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
+import "./styles/ops-standard.css";
 
 import Dashboard from "./pages/Dashboard";
 import BaoCaoVanHanhBepForm from "./pages/BaoCaoVanHanhBepForm";
@@ -8,6 +9,7 @@ import TaiKhoan from "./pages/TaiKhoan";
 import Nhansu from "./pages/Nhansu";
 import Doixe from "./pages/Doixe";
 import Thietbi from "./pages/Thietbi";
+import SystemCatalog from "./pages/SystemCatalog.jsx";
 import Bieumau from "./pages/Bieumau";
 import {
   IconChevronsLeft,
@@ -21,6 +23,64 @@ import {
   IconSidebarUsers,
   IconSidebarWrench,
 } from "./components/SidebarIcons.jsx";
+
+const ACCOUNT_STORAGE_KEY = "app_bep_accounts_v2";
+const CURRENT_USER_KEY = "app_bep_current_user_v1";
+
+function readJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function fullAccessPermissions() {
+  return {
+    pages: {
+      dashboard: true,
+      baocaongay: true,
+      doixe: true,
+      thietbi: true,
+      antoan: true,
+      nhansu: true,
+      bieumau: true,
+      taikhoan: true,
+      danhmuc: true,
+    },
+    reportTabs: {
+      summary: true,
+      management: true,
+      service: true,
+      accounting: true,
+      warehouse: true,
+      bep: true,
+    },
+  };
+}
+
+function getPermissionContext() {
+  const accounts = readJson(ACCOUNT_STORAGE_KEY, []);
+  if (!Array.isArray(accounts) || accounts.length === 0) return fullAccessPermissions();
+  const preferredUser = localStorage.getItem(CURRENT_USER_KEY) || "admin";
+  const fallback = accounts.find((x) => x.active && x.username === "admin");
+  const current = accounts.find((x) => x.active && x.username === preferredUser) || fallback;
+  if (!current?.permissions) return fullAccessPermissions();
+
+  const pages = { ...fullAccessPermissions().pages };
+  const legacyPageMap = { report: "baocaongay", safety: "antoan", hr: "nhansu", account: "taikhoan" };
+  Object.entries(current.permissions.pages || {}).forEach(([key, value]) => {
+    const mapped = legacyPageMap[key] || key;
+    if (mapped in pages) pages[mapped] = Boolean(value);
+  });
+  const reportTabs = { ...fullAccessPermissions().reportTabs };
+  Object.entries(current.permissions.reportTabs || {}).forEach(([key, value]) => {
+    if (key in reportTabs) reportTabs[key] = Boolean(value);
+  });
+  return { pages, reportTabs };
+}
 
 function App() {
   const [page, setPage] = useState("dashboard");
@@ -41,6 +101,17 @@ function App() {
   const [activeFormType, setActiveFormType] = useState("bien-ban-vi-pham");
   const settingsMenuRef = useRef(null);
 
+  useEffect(() => {
+    if (assetTab === "catalog") setAssetTab("overview");
+  }, [assetTab]);
+
+  const permissionCtx = useMemo(
+    () => getPermissionContext(),
+    [page, reportTab, fleetTab, assetTab, safetyTab, nhansuTab, activeFormGroup, activeFormType]
+  );
+  const canAccessPage = (pageKey) => Boolean(permissionCtx.pages?.[pageKey]);
+  const canAccessReportTab = (tabKey) => Boolean(permissionCtx.reportTabs?.[tabKey]);
+
   const mainMenu = [
     { key: "dashboard", label: "Dashboard", Icon: IconSidebarDashboard },
     { key: "baocaongay", label: "Báo cáo", Icon: IconSidebarReport },
@@ -52,6 +123,7 @@ function App() {
   ];
 
   const settingsMenu = [
+    { key: "danhmuc", label: "Danh mục hệ thống" },
     { key: "taikhoan", label: "Tài khoản" },
   ];
   const reportSubmenu = [
@@ -112,12 +184,12 @@ function App() {
     { key: "repairs", label: "Lịch sử sửa chữa" },
     { key: "transfers", label: "Cấp phát / điều chuyển" },
     { key: "alerts", label: "Cảnh báo" },
-    { key: "catalog", label: "Danh mục bếp/site" },
   ];
 
   const isSettingsActive = settingsMenu.some((item) => item.key === page);
 
   const handleSelectPage = (nextPage) => {
+    if (!canAccessPage(nextPage)) return;
     setPage(nextPage);
     setSettingsOpen(false);
     if (nextPage !== "baocaongay") {
@@ -141,6 +213,7 @@ function App() {
   };
 
   const handleSelectReportTab = (tabKey) => {
+    if (!canAccessPage("baocaongay") || !canAccessReportTab(tabKey)) return;
     setReportTab(tabKey);
     setPage("baocaongay");
     setReportMenuOpen(true);
@@ -149,6 +222,7 @@ function App() {
     setBieumauMenuOpen(false);
   };
   const handleSelectFleetTab = (tabKey) => {
+    if (!canAccessPage("doixe")) return;
     setFleetTab(tabKey);
     setPage("doixe");
     setFleetMenuOpen(true);
@@ -157,6 +231,7 @@ function App() {
     setBieumauMenuOpen(false);
   };
   const handleSelectSafetyTab = (tabKey) => {
+    if (!canAccessPage("antoan")) return;
     setSafetyTab(tabKey);
     setPage("antoan");
     setSafetyMenuOpen(true);
@@ -165,6 +240,7 @@ function App() {
     setBieumauMenuOpen(false);
   };
   const handleSelectAssetTab = (tabKey) => {
+    if (!canAccessPage("thietbi")) return;
     setAssetTab(tabKey);
     setPage("thietbi");
     setAssetMenuOpen(true);
@@ -174,6 +250,7 @@ function App() {
   };
 
   const handleSelectNhansuSub = (sub) => {
+    if (sub.page && !canAccessPage(sub.page)) return;
     setPage(sub.page);
     if (sub.page === "nhansu") {
       setNhansuTab(sub.key);
@@ -195,6 +272,7 @@ function App() {
   };
 
   const handleSelectBieumauGroup = (groupKey) => {
+    if (!canAccessPage("bieumau")) return;
     setPage("bieumau");
     setActiveFormGroup(groupKey);
     setActiveFormType(defaultTypeByGroup[groupKey] || "");
@@ -208,6 +286,7 @@ function App() {
   };
 
   const handleSelectBieumauType = (typeKey) => {
+    if (!canAccessPage("bieumau")) return;
     setPage("bieumau");
     setActiveFormType(typeKey);
     setBieumauMenuOpen(true);
@@ -256,6 +335,9 @@ function App() {
   }, []);
 
   const renderPage = () => {
+    if (!canAccessPage(page)) {
+      return <Dashboard />;
+    }
     switch (page) {
       case "dashboard":
         return <Dashboard />;
@@ -263,6 +345,8 @@ function App() {
         return <BaoCaoVanHanhBepForm initialTab={reportTab} onTabChange={setReportTab} />;
       case "antoan":
         return <AnToan initialTab={safetyTab} onTabChange={setSafetyTab} />;
+      case "danhmuc":
+        return <SystemCatalog />;
       case "taikhoan":
         return <TaiKhoan />;
       case "nhansu":
@@ -270,7 +354,13 @@ function App() {
       case "doixe":
         return <Doixe initialTab={fleetTab} onTabChange={setFleetTab} />;
       case "thietbi":
-        return <Thietbi initialTab={assetTab === "monthly" ? "overview" : assetTab} />;
+        return (
+          <Thietbi
+            initialTab={
+              assetTab === "monthly" || assetTab === "catalog" ? "overview" : assetTab
+            }
+          />
+        );
       case "bieumau":
         return (
           <Bieumau
@@ -307,6 +397,7 @@ function App() {
 
         <nav className="sidebar-menu">
           {mainMenu.map((item) => {
+            if (!canAccessPage(item.key)) return null;
             const ItemIcon = item.Icon;
             if (item.key === "baocaongay") {
               return (
@@ -336,7 +427,7 @@ function App() {
 
                   {!isCollapsed && reportMenuOpen && (
                     <div className="sidebar-submenu" role="menu">
-                      {reportSubmenu.map((sub) => (
+                      {reportSubmenu.filter((sub) => canAccessReportTab(sub.key)).map((sub) => (
                         <button
                           key={sub.key}
                           type="button"
@@ -466,7 +557,7 @@ function App() {
                   </button>
                   {!isCollapsed && nhansuMenuOpen && (
                     <div className="sidebar-submenu" role="menu">
-                      {nhansuSubmenu.map((sub) => (
+                      {nhansuSubmenu.filter((sub) => canAccessPage(sub.page)).map((sub) => (
                         <button
                           key={sub.key}
                           type="button"
@@ -601,7 +692,7 @@ function App() {
 
             {!isCollapsed && settingsOpen && (
               <div id="settings-sidebar-panel" className="sidebar-submenu" role="menu">
-                {settingsMenu.map((item) => (
+                {settingsMenu.filter((item) => canAccessPage(item.key)).map((item) => (
                   <button
                     key={item.key}
                     type="button"

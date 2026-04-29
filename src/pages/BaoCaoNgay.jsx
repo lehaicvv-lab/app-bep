@@ -1,5 +1,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
+import { buildSiteSelectOptions, getShiftNames } from "../systemCatalog/masterData.js";
+import { useMasterCatalogSnapshot } from "../systemCatalog/useMasterCatalogSnapshot.js";
 
 /**
  * BaoCaoVanHanhBepForm.jsx
@@ -1279,9 +1281,10 @@ function normalizeFormSnapshot(currentForm) {
     if (typeof next.header[key] === "string") next.header[key] = next.header[key].trim();
   });
 
-  const allowedShifts = ["Ca ngày", "Ca đêm"];
-  if (!allowedShifts.includes(next.header.shift)) {
-    next.header.shift = "Ca ngày";
+  const allowedShifts = getShiftNames();
+  const shiftAllow = allowedShifts.length ? allowedShifts : ["Ca ngày", "Ca đêm"];
+  if (!shiftAllow.includes(next.header.shift)) {
+    next.header.shift = shiftAllow[0];
   }
 
   Object.keys(next.sections).forEach((sectionKey) => {
@@ -2813,6 +2816,27 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
           ? computeProcurementOperationalScore(f.sections, f.header)
         : computeOperationalDayScore(f.sections, f.header);
   const [form, setForm] = useState(createDefaultForm);
+  const masterCatalog = useMasterCatalogSnapshot();
+  const siteSelectOptions = useMemo(() => buildSiteSelectOptions(), [masterCatalog]);
+  const siteOptionsWithLegacy = useMemo(() => {
+    const v = String(form.header.site || "").trim();
+    if (v && !siteSelectOptions.some((o) => o.value === v)) {
+      return [{ value: v, label: `${v} (không có trong danh mục)` }, ...siteSelectOptions];
+    }
+    return siteSelectOptions;
+  }, [siteSelectOptions, form.header.site]);
+  const shiftNameOptions = useMemo(() => {
+    const n = getShiftNames();
+    return n.length ? n : ["Ca ngày", "Ca đêm"];
+  }, [masterCatalog]);
+  const kitchenOptionsWithLegacy = useMemo(() => {
+    const names = masterCatalog.departments.map((d) => d.name);
+    const v = String(form.header.kitchen || "").trim();
+    if (v && !names.includes(v)) {
+      return [{ id: "__legacy__", name: v }, ...masterCatalog.departments];
+    }
+    return masterCatalog.departments;
+  }, [masterCatalog, form.header.kitchen]);
   const [openSections, setOpenSections] = useState({
     dauCaRuiRo: true,
     kpiDay: true,
@@ -3220,7 +3244,7 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
 
     const isValid = validateForm(withExecutive);
     if (!isValid) {
-      setSaveMessage("Chưa lưu được. Mày kiểm tra lại mấy mục đang báo đỏ.");
+      setSaveMessage("Chưa lưu được. Vui lòng kiểm tra lại các mục đang báo đỏ.");
       return;
     }
 
@@ -3310,16 +3334,21 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
 
                 <div className="report-dash-field">
                   <span className="report-dash-field-label">
-                    Khu vực <span className="report-dash-req">*</span>
+                    Khu vực / Bếp-site <span className="report-dash-req">*</span>
                   </span>
-                  <input
-                    className="report-dash-input report-dash-input--hero"
-                    type="text"
+                  <select
+                    className="report-dash-select report-dash-input--hero"
                     value={form.header.site}
                     onChange={(e) => handleHeaderChange("site", e.target.value)}
-                    placeholder="Nhơn Trạch - Đồng Nai"
-                    aria-label="Khu vực"
-                  />
+                    aria-label="Khu vực và bếp site theo danh mục"
+                  >
+                    <option value="">— Chọn từ danh mục —</option>
+                    {siteOptionsWithLegacy.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
                   {errors.header?.site ? <div className="report-dash-field-error">{errors.header.site}</div> : null}
                 </div>
 
@@ -3346,8 +3375,11 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
                       value={form.header.shift}
                       onChange={(e) => handleHeaderChange("shift", e.target.value)}
                     >
-                      <option value="Ca ngày">Ca ngày</option>
-                      <option value="Ca đêm">Ca đêm</option>
+                      {shiftNameOptions.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -3357,14 +3389,19 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
                     <span className="report-dash-field-label">
                       Bộ phận <span className="report-dash-req">*</span>
                     </span>
-                    <input
-                      className="report-dash-input"
-                      type="text"
+                    <select
+                      className="report-dash-select"
                       value={form.header.kitchen}
                       onChange={(e) => handleHeaderChange("kitchen", e.target.value)}
-                      placeholder="Ví dụ: Dịch vụ suất ăn — Bếp nóng"
                       aria-label="Bộ phận"
-                    />
+                    >
+                      <option value="">— Chọn bộ phận —</option>
+                      {kitchenOptionsWithLegacy.map((d) => (
+                        <option key={d.id} value={d.name}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
                     {errors.header?.kitchen ? (
                       <div className="report-dash-field-error">{errors.header.kitchen}</div>
                     ) : null}

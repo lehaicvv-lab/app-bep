@@ -1,13 +1,28 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  createSnapshot,
+  downloadBackup,
+  ensureAutoSnapshot,
+  exportBackupPayload,
+  getSnapshotHistory,
+  parseBackupText,
+  restoreFromBackupPayload,
+  rollbackToSnapshot,
+} from "../utils/appBackup.js";
 
 const STORAGE_KEY = "app_bep_accounts_v2";
+const CURRENT_USER_KEY = "app_bep_current_user_v1";
 
 const PAGE_OPTIONS = [
   { key: "dashboard", label: "Dashboard" },
-  { key: "report", label: "Báo cáo ngày" },
-  { key: "safety", label: "An toàn" },
-  { key: "hr", label: "Nhân sự" },
-  { key: "account", label: "Tài khoản" },
+  { key: "baocaongay", label: "Báo cáo ngày" },
+  { key: "doixe", label: "Đội xe" },
+  { key: "thietbi", label: "Thiết bị" },
+  { key: "antoan", label: "An toàn" },
+  { key: "nhansu", label: "Nhân sự" },
+  { key: "bieumau", label: "Biểu mẫu" },
+  { key: "danhmuc", label: "Danh mục hệ thống" },
+  { key: "taikhoan", label: "Tài khoản" },
 ];
 
 const REPORT_TAB_OPTIONS = [
@@ -30,10 +45,14 @@ const ACTION_OPTIONS = [
 const EMPTY_PERMISSIONS = {
   pages: {
     dashboard: false,
-    report: false,
-    safety: false,
-    hr: false,
-    account: false,
+    baocaongay: false,
+    doixe: false,
+    thietbi: false,
+    antoan: false,
+    nhansu: false,
+    bieumau: false,
+    danhmuc: false,
+    taikhoan: false,
   },
   reportTabs: {
     summary: false,
@@ -56,10 +75,14 @@ const ROLE_PRESETS = {
   admin: {
     pages: {
       dashboard: true,
-      report: true,
-      safety: true,
-      hr: true,
-      account: true,
+      baocaongay: true,
+      doixe: true,
+      thietbi: true,
+      antoan: true,
+      nhansu: true,
+      bieumau: true,
+      danhmuc: true,
+      taikhoan: true,
     },
     reportTabs: {
       summary: true,
@@ -80,10 +103,14 @@ const ROLE_PRESETS = {
   manager: {
     pages: {
       dashboard: true,
-      report: true,
-      safety: true,
-      hr: true,
-      account: false,
+      baocaongay: true,
+      doixe: true,
+      thietbi: true,
+      antoan: true,
+      nhansu: true,
+      bieumau: true,
+      danhmuc: true,
+      taikhoan: false,
     },
     reportTabs: {
       summary: true,
@@ -104,10 +131,14 @@ const ROLE_PRESETS = {
   staff: {
     pages: {
       dashboard: false,
-      report: true,
-      safety: false,
-      hr: false,
-      account: false,
+      baocaongay: true,
+      doixe: false,
+      thietbi: false,
+      antoan: false,
+      nhansu: false,
+      bieumau: false,
+      danhmuc: false,
+      taikhoan: false,
     },
     reportTabs: {
       summary: false,
@@ -189,12 +220,56 @@ function clonePermissions(source) {
   };
 }
 
+function normalizePermissions(inputPermissions = EMPTY_PERMISSIONS) {
+  const legacyPageMap = {
+    report: "baocaongay",
+    safety: "antoan",
+    hr: "nhansu",
+    account: "taikhoan",
+  };
+  const next = clonePermissions(EMPTY_PERMISSIONS);
+  const incomingPages = inputPermissions?.pages || {};
+  Object.entries(incomingPages).forEach(([key, value]) => {
+    const mapped = legacyPageMap[key] || key;
+    if (mapped in next.pages) next.pages[mapped] = Boolean(value);
+  });
+  const incomingTabs = inputPermissions?.reportTabs || {};
+  Object.keys(next.reportTabs).forEach((k) => {
+    if (k in incomingTabs) next.reportTabs[k] = Boolean(incomingTabs[k]);
+  });
+  const incomingActions = inputPermissions?.actions || {};
+  Object.keys(next.actions).forEach((k) => {
+    if (k in incomingActions) next.actions[k] = Boolean(incomingActions[k]);
+  });
+  return next;
+}
+
+function hashPassword(value) {
+  const raw = String(value || "");
+  let hash = 5381;
+  for (let i = 0; i < raw.length; i++) {
+    hash = (hash * 33) ^ raw.charCodeAt(i);
+  }
+  return `h:${(hash >>> 0).toString(16)}`;
+}
+
 function loadAccounts() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_ACCOUNTS;
+    if (!raw) {
+      return DEFAULT_ACCOUNTS.map((x) => ({
+        ...x,
+        password: hashPassword(x.password),
+        permissions: normalizePermissions(x.permissions),
+      }));
+    }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_ACCOUNTS;
+    const rows = Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_ACCOUNTS;
+    return rows.map((x) => ({
+      ...x,
+      password: String(x.password || "").startsWith("h:") ? x.password : hashPassword(x.password),
+      permissions: normalizePermissions(x.permissions),
+    }));
   } catch {
     return DEFAULT_ACCOUNTS;
   }
@@ -301,9 +376,23 @@ export default function TaiKhoan() {
   const [accounts, setAccounts] = useState(DEFAULT_ACCOUNTS);
   const [notice, setNotice] = useState({ type: "", message: "" });
   const [permissionTargetId, setPermissionTargetId] = useState(null);
+  const [snapshotRows, setSnapshotRows] = useState([]);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [currentUsername, setCurrentUsername] = useState("");
+  const backupInputRef = useRef(null);
 
   useEffect(() => {
     setAccounts(loadAccounts());
+    setCurrentUsername(localStorage.getItem(CURRENT_USER_KEY) || "admin");
+  }, []);
+
+  useEffect(() => {
+    try {
+      ensureAutoSnapshot();
+      setSnapshotRows(getSnapshotHistory());
+    } catch {
+      // Bỏ qua lỗi snapshot để không chặn màn hình tài khoản
+    }
   }, []);
 
   useEffect(() => {
@@ -318,6 +407,7 @@ export default function TaiKhoan() {
   const totalAccounts = accounts.length;
   const activeAccounts = accounts.filter((item) => item.active).length;
   const managerAccounts = accounts.filter((item) => item.role === "manager").length;
+  const latestSnapshotAt = snapshotRows[0]?.createdAt || "";
 
   const showNotice = (type, message) => {
     setNotice({ type, message });
@@ -353,6 +443,10 @@ export default function TaiKhoan() {
       showNotice("warning", "Tài khoản đã tồn tại. Vui lòng dùng tên tài khoản khác.");
       return;
     }
+    if (form.password.trim().length < 6) {
+      showNotice("warning", "Mật khẩu tối thiểu 6 ký tự.");
+      return;
+    }
 
     const preset = ROLE_PRESETS[form.role] || ROLE_PRESETS.staff;
 
@@ -360,7 +454,7 @@ export default function TaiKhoan() {
       id: Date.now(),
       fullName: form.fullName.trim(),
       username: form.username.trim(),
-      password: form.password.trim(),
+      password: hashPassword(form.password.trim()),
       role: form.role,
       area: form.area.trim(),
       active: true,
@@ -380,6 +474,11 @@ export default function TaiKhoan() {
   const handleToggleStatus = (id) => {
     const target = accounts.find((item) => item.id === id);
     if (!target) return;
+    const activeAdmins = accounts.filter((x) => x.role === "admin" && x.active);
+    if (target.role === "admin" && target.active && activeAdmins.length <= 1) {
+      showNotice("error", "Không thể khóa admin đang hoạt động cuối cùng.");
+      return;
+    }
 
     setAccounts((prev) =>
       prev.map((item) =>
@@ -398,6 +497,11 @@ export default function TaiKhoan() {
   const handleDelete = (id) => {
     const target = accounts.find((item) => item.id === id);
     if (!target) return;
+    const activeAdmins = accounts.filter((x) => x.role === "admin" && x.active);
+    if (target.role === "admin" && target.active && activeAdmins.length <= 1) {
+      showNotice("error", "Không thể xóa admin đang hoạt động cuối cùng.");
+      return;
+    }
 
     const ok = window.confirm(`Xóa tài khoản "${target.username}"?`);
     if (!ok) return;
@@ -444,8 +548,80 @@ export default function TaiKhoan() {
     );
   };
 
+  const handleSwitchCurrentUser = (username) => {
+    setCurrentUsername(username);
+    localStorage.setItem(CURRENT_USER_KEY, username);
+    showNotice("info", `Đã chuyển tài khoản thao tác sang "${username}".`);
+  };
+
+  const refreshSnapshots = () => {
+    setSnapshotRows(getSnapshotHistory());
+  };
+
+  const handleCreateSnapshotNow = () => {
+    try {
+      createSnapshot("Snapshot thủ công", "manual");
+      refreshSnapshots();
+      showNotice("success", "Đã tạo snapshot rollback an toàn.");
+    } catch (error) {
+      showNotice("error", error?.message || "Không thể tạo snapshot.");
+    }
+  };
+
+  const handleExportBackup = () => {
+    try {
+      const payload = exportBackupPayload("Backup thủ công");
+      downloadBackup(payload);
+      showNotice("success", `Đã tải backup (${payload.entryCount} key dữ liệu).`);
+    } catch (error) {
+      showNotice("error", error?.message || "Không thể xuất backup.");
+    }
+  };
+
+  const handleOpenRestorePicker = () => {
+    if (backupInputRef.current) {
+      backupInputRef.current.value = "";
+      backupInputRef.current.click();
+    }
+  };
+
+  const handleRestoreFromFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setRestoreBusy(true);
+    try {
+      const text = await file.text();
+      const payload = parseBackupText(text);
+      const ok = window.confirm(
+        `Khôi phục backup "${file.name}" (${payload.entries.length} key dữ liệu)?\nHệ thống sẽ tự tạo snapshot trước khi khôi phục.`
+      );
+      if (!ok) return;
+      restoreFromBackupPayload(payload, file.name);
+      setAccounts(loadAccounts());
+      refreshSnapshots();
+      showNotice("success", "Khôi phục dữ liệu thành công. Đã tự tạo snapshot trước/sau restore.");
+    } catch (error) {
+      showNotice("error", error?.message || "Khôi phục thất bại.");
+    } finally {
+      setRestoreBusy(false);
+    }
+  };
+
+  const handleRollback = (snapshotId, label) => {
+    const ok = window.confirm(`Rollback về snapshot "${label}"?`);
+    if (!ok) return;
+    try {
+      rollbackToSnapshot(snapshotId);
+      setAccounts(loadAccounts());
+      refreshSnapshots();
+      showNotice("warning", "Đã rollback dữ liệu theo snapshot đã chọn.");
+    } catch (error) {
+      showNotice("error", error?.message || "Rollback thất bại.");
+    }
+  };
+
   return (
-    <div style={styles.page}>
+    <div className="ops-standard-page" style={styles.page}>
       <div style={styles.heroCard}>
         <div>
           <h1 style={styles.heroTitle}>Quản lý tài khoản & phân quyền nhân viên</h1>
@@ -469,6 +645,22 @@ export default function TaiKhoan() {
           <div style={styles.summaryCard}>
             <div style={styles.summaryLabel}>Quản lý</div>
             <div style={{ ...styles.summaryValue, color: "#166534" }}>{managerAccounts}</div>
+          </div>
+          <div style={{ ...styles.summaryCard, minWidth: 260 }}>
+            <div style={styles.summaryLabel}>Tài khoản đang sử dụng</div>
+            <select
+              style={{ ...styles.input, height: 42 }}
+              value={currentUsername}
+              onChange={(e) => handleSwitchCurrentUser(e.target.value)}
+            >
+              {accounts
+                .filter((x) => x.active)
+                .map((x) => (
+                  <option key={x.id} value={x.username}>
+                    {x.username} ({roleLabel(x.role)})
+                  </option>
+                ))}
+            </select>
           </div>
         </div>
       </div>
@@ -518,6 +710,7 @@ export default function TaiKhoan() {
             <div style={styles.formItem}>
               <label style={styles.label}>Mật khẩu</label>
               <input
+                type="password"
                 style={styles.input}
                 value={form.password}
                 onChange={(e) => handleChange("password", e.target.value)}
@@ -630,7 +823,7 @@ export default function TaiKhoan() {
                       </div>
                     </td>
 
-                    <td style={styles.tdMono}>{item.password}</td>
+                    <td style={styles.tdMono}>******</td>
 
                     <td style={styles.td}>
                       <span style={getStatusBadgeStyle(item.active)}>
@@ -670,6 +863,60 @@ export default function TaiKhoan() {
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div style={styles.card}>
+        <div style={styles.cardHeader}>
+          <div>
+            <h2 style={styles.cardTitle}>Sao lưu dữ liệu hệ thống</h2>
+            <p style={styles.cardDesc}>
+              Backup/Restore cho toàn bộ Sky Catering Operations và rollback theo snapshot nếu thao tác sai.
+            </p>
+          </div>
+        </div>
+        <div style={styles.helperRow}>
+          <div style={styles.helperChipGreen}>Snapshot gần nhất: {latestSnapshotAt ? new Date(latestSnapshotAt).toLocaleString("vi-VN") : "Chưa có"}</div>
+          <div style={styles.helperChipYellow}>Số snapshot lưu trong máy: {snapshotRows.length}</div>
+        </div>
+        <div style={styles.actionRow}>
+          <button type="button" style={styles.primaryButton} onClick={handleExportBackup}>
+            Tải file backup (.json)
+          </button>
+          <button type="button" style={styles.secondaryButton} onClick={handleOpenRestorePicker} disabled={restoreBusy}>
+            Khôi phục từ file backup
+          </button>
+          <button type="button" style={styles.secondaryButton} onClick={handleCreateSnapshotNow}>
+            Tạo snapshot ngay
+          </button>
+          <input
+            ref={backupInputRef}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: "none" }}
+            onChange={handleRestoreFromFile}
+          />
+        </div>
+        <div style={styles.snapshotList}>
+          {snapshotRows.length === 0 ? (
+            <div style={styles.snapshotEmpty}>Chưa có snapshot.</div>
+          ) : (
+            snapshotRows.map((row) => (
+              <div key={row.id} style={styles.snapshotItem}>
+                <div style={styles.snapshotMeta}>
+                  <strong>{row.label}</strong>
+                  <span>{new Date(row.createdAt).toLocaleString("vi-VN")} · {row.entryCount || 0} key</span>
+                </div>
+                <button
+                  type="button"
+                  style={styles.outlineButton}
+                  onClick={() => handleRollback(row.id, row.label)}
+                >
+                  Rollback snapshot này
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -1485,5 +1732,40 @@ const styles = {
     fontSize: 14,
     lineHeight: 1.6,
     color: "#475569",
+  },
+
+  snapshotList: {
+    marginTop: 14,
+    display: "grid",
+    gap: 10,
+  },
+
+  snapshotEmpty: {
+    border: "1px dashed #cbd5e1",
+    borderRadius: 12,
+    padding: 14,
+    color: "#64748b",
+    fontSize: 14,
+    fontWeight: 600,
+    background: "#f8fafc",
+  },
+
+  snapshotItem: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 12,
+    padding: 12,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+    background: "#ffffff",
+  },
+
+  snapshotMeta: {
+    display: "grid",
+    gap: 4,
+    color: "#334155",
+    fontSize: 13,
   },
 };

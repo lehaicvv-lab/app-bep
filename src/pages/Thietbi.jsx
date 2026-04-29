@@ -6,7 +6,8 @@ import CCDCInventory from "./thietbi/CCDCInventory";
 import EquipmentLogs from "./thietbi/EquipmentLogs";
 import TransferHistory from "./thietbi/TransferHistory";
 import AssetAlerts from "./thietbi/AssetAlerts";
-import LocationMaster from "./thietbi/LocationMaster";
+import ModuleShell from "../components/ModuleShell";
+import { loadLocations, loadRegions, MASTER_DATA_CHANGE } from "../systemCatalog/masterData.js";
 
 const KEYS = {
   regions: "asset_regions",
@@ -17,6 +18,7 @@ const KEYS = {
   equipment: "asset_equipment_list",
   equipmentLogs: "asset_equipment_logs",
   transferHistory: "asset_transfer_history",
+  alertStates: "asset_alert_states",
 };
 
 function uid() {
@@ -41,6 +43,10 @@ function writeArray(key, rows) {
 function monthKey(dateStr) {
   const [y, m] = String(dateStr || "").slice(0, 7).split("-");
   return y && m ? `${y}-${m}` : "";
+}
+
+function stableAlertId(parts) {
+  return parts.map((x) => String(x || "").trim().toLowerCase()).join("|");
 }
 
 function previousMonthKey(month) {
@@ -76,13 +82,41 @@ function calcEquipmentSummary(equipmentRows, equipmentLogs) {
   return summary;
 }
 
-function deriveAlerts({ regions, locations, equipmentRows, equipmentSummary, ccdcRows, ccdcMonthly, ccdcReceipts }) {
+function deriveAlerts({
+  regions,
+  locations,
+  equipmentRows,
+  equipmentSummary,
+  ccdcRows,
+  ccdcMonthly,
+  ccdcReceipts,
+  alertStates,
+}) {
   const alerts = [];
   const now = new Date();
   const currentMonth = monthKey(now.toISOString().slice(0, 10));
   const prevMonth = previousMonthKey(currentMonth);
   const locById = Object.fromEntries(locations.map((x) => [x.id, x]));
   const regionById = Object.fromEntries(regions.map((x) => [x.id, x]));
+  const monthlyByRowMonth = new Map(
+    ccdcMonthly.filter((x) => !x.isDeleted).map((x) => [`${x.rowId}|${x.monthKey}`, x])
+  );
+  const receiptQtyByRowMonth = ccdcReceipts
+    .filter((x) => !x.isDeleted)
+    .reduce((acc, x) => {
+      const key = `${x.rowId}|${monthKey(x.receiptDate)}`;
+      acc.set(key, (acc.get(key) || 0) + Number(x.qty || 0));
+      return acc;
+    }, new Map());
+
+  function pushAlert(base, keyParts) {
+    const id = stableAlertId(keyParts);
+    alerts.push({
+      ...base,
+      id,
+      status: alertStates[id] || base.status || "Chưa xử lý",
+    });
+  }
 
   equipmentRows
     .filter((x) => !x.isDeleted)
@@ -93,56 +127,56 @@ function deriveAlerts({ regions, locations, equipmentRows, equipmentSummary, ccd
       const region = regionById[asset.regionId];
 
       if (["Đang hỏng", "Đang sửa", "Đề xuất thay thế"].includes(status)) {
-        alerts.push({
-          id: uid(),
+        pushAlert({
           level: status === "Đề xuất thay thế" ? "Cảnh báo" : "Nghiêm trọng",
           group: "Thiết bị",
+          assetId: asset.id,
           region: region?.name || "—",
           location: loc?.name || "—",
           message: `${asset.name} đang ở trạng thái ${status}`,
           detectedAt: now.toISOString().slice(0, 10),
           status: "Chưa xử lý",
-        });
+        }, ["thietbi", asset.id, "status", status]);
       }
 
       if (!s?.lastCheckDate || (now - new Date(s.lastCheckDate)) / 86400000 > 30) {
-        alerts.push({
-          id: uid(),
+        pushAlert({
           level: "Cảnh báo",
           group: "Thiết bị",
+          assetId: asset.id,
           region: region?.name || "—",
           location: loc?.name || "—",
           message: `${asset.name} quá 30 ngày chưa kiểm tra`,
           detectedAt: now.toISOString().slice(0, 10),
           status: "Chưa xử lý",
-        });
+        }, ["thietbi", asset.id, "overdue-check"]);
       }
 
       const logsThisMonth = (s?.logs || []).filter((x) => monthKey(x.logDate) === currentMonth);
       if (logsThisMonth.length > 3) {
-        alerts.push({
-          id: uid(),
+        pushAlert({
           level: "Nghiêm trọng",
           group: "Thiết bị",
+          assetId: asset.id,
           region: region?.name || "—",
           location: loc?.name || "—",
           message: `${asset.name} xử lý ${logsThisMonth.length} lần trong tháng`,
           detectedAt: now.toISOString().slice(0, 10),
           status: "Chưa xử lý",
-        });
+        }, ["thietbi", asset.id, "high-frequency", currentMonth]);
       }
 
       if ((s?.totalCost || 0) > 10000000) {
-        alerts.push({
-          id: uid(),
+        pushAlert({
           level: "Theo dõi",
           group: "Thiết bị",
+          assetId: asset.id,
           region: region?.name || "—",
           location: loc?.name || "—",
           message: `${asset.name} có chi phí xử lý cao (${s.totalCost.toLocaleString("vi-VN")}đ)`,
           detectedAt: now.toISOString().slice(0, 10),
           status: "Chưa xử lý",
-        });
+        }, ["thietbi", asset.id, "high-cost"]);
       }
     });
 
@@ -152,40 +186,38 @@ function deriveAlerts({ regions, locations, equipmentRows, equipmentSummary, ccd
     .forEach((row) => {
       const region = regionById[row.regionId];
       const loc = locById[row.locationId];
-      const prevInv = ccdcMonthly.find((x) => x.rowId === row.id && x.monthKey === prevMonth && !x.isDeleted);
+      const prevInv = monthlyByRowMonth.get(`${row.id}|${prevMonth}`);
       const prevActual = Number(prevInv?.actualQty || 0);
-      const prevReceipts = ccdcReceipts
-        .filter((x) => x.rowId === row.id && monthKey(x.receiptDate) === prevMonth && !x.isDeleted)
-        .reduce((sum, x) => sum + Number(x.qty || 0), 0);
+      const prevReceipts = receiptQtyByRowMonth.get(`${row.id}|${prevMonth}`) || 0;
       const expected = prevActual + prevReceipts;
-      const curInv = ccdcMonthly.find((x) => x.rowId === row.id && x.monthKey === currentMonth && !x.isDeleted);
+      const curInv = monthlyByRowMonth.get(`${row.id}|${currentMonth}`);
       const actual = Number(curInv?.actualQty || 0);
 
       if (!curInv) {
-        alerts.push({
-          id: uid(),
+        pushAlert({
           level: "Theo dõi",
           group: "CCDC",
+          rowId: row.id,
           region: region?.name || "—",
           location: loc?.name || "—",
           message: `${row.itemName} chưa kiểm kê tháng ${currentMonth}`,
           detectedAt: now.toISOString().slice(0, 10),
           status: "Chưa xử lý",
-        });
+        }, ["ccdc", row.id, "missing-inventory", currentMonth]);
       } else {
         const diff = actual - expected;
         const rate = expected > 0 ? (diff / expected) * 100 : 0;
         if (diff < 0) {
-          alerts.push({
-            id: uid(),
+          pushAlert({
             level: Math.abs(rate) > 20 ? "Nghiêm trọng" : "Cảnh báo",
             group: "CCDC",
+            rowId: row.id,
             region: region?.name || "—",
             location: loc?.name || "—",
             message: `${rowsById[row.id]?.itemName || row.itemName} hao hụt ${Math.abs(diff)}`,
             detectedAt: now.toISOString().slice(0, 10),
             status: "Chưa xử lý",
-          });
+          }, ["ccdc", row.id, "loss", currentMonth]);
         }
       }
     });
@@ -207,11 +239,21 @@ function buildDashboard(cardsSource) {
 }
 
 export default function Thietbi({ initialTab = "overview" }) {
-  const [tab, setTab] = useState(initialTab);
-  useEffect(() => setTab(initialTab), [initialTab]);
+  const safeTab = initialTab === "catalog" || initialTab === "monthly" ? "overview" : initialTab;
+  const [tab, setTab] = useState(safeTab);
+  useEffect(() => setTab(initialTab === "catalog" || initialTab === "monthly" ? "overview" : initialTab), [initialTab]);
 
-  const [regions, setRegions] = useState(() => readArray(KEYS.regions));
-  const [locations, setLocations] = useState(() => readArray(KEYS.locations));
+  useEffect(() => {
+    const sync = () => {
+      setRegions(loadRegions());
+      setLocations(loadLocations());
+    };
+    window.addEventListener(MASTER_DATA_CHANGE, sync);
+    return () => window.removeEventListener(MASTER_DATA_CHANGE, sync);
+  }, []);
+
+  const [regions, setRegions] = useState(() => loadRegions());
+  const [locations, setLocations] = useState(() => loadLocations());
   const [ccdcRows, setCcdcRows] = useState(() => readArray(KEYS.ccdcRows));
   const [ccdcMonthly, setCcdcMonthly] = useState(() => readArray(KEYS.ccdcMonthly));
   const [ccdcReceipts, setCcdcReceipts] = useState(() => readArray(KEYS.ccdcReceipts));
@@ -244,6 +286,11 @@ export default function Thietbi({ initialTab = "overview" }) {
     }));
   });
   const [transferHistory, setTransferHistory] = useState(() => readArray(KEYS.transferHistory));
+  const [alertStateRows, setAlertStateRows] = useState(() => readArray(KEYS.alertStates));
+  const alertStates = useMemo(
+    () => Object.fromEntries(alertStateRows.map((x) => [x.id, x.status])),
+    [alertStateRows]
+  );
 
   const equipmentSummary = useMemo(
     () => calcEquipmentSummary(equipmentRows, equipmentLogs),
@@ -253,15 +300,23 @@ export default function Thietbi({ initialTab = "overview" }) {
   const currentMonth = monthKey(new Date().toISOString().slice(0, 10));
   const prevMonth = previousMonthKey(currentMonth);
   const ccdcLossThisMonth = useMemo(() => {
+    const monthlyByRowMonth = new Map(
+      ccdcMonthly.filter((x) => !x.isDeleted).map((x) => [`${x.rowId}|${x.monthKey}`, x])
+    );
+    const receiptQtyByRowMonth = ccdcReceipts
+      .filter((x) => !x.isDeleted)
+      .reduce((acc, x) => {
+        const key = `${x.rowId}|${monthKey(x.receiptDate)}`;
+        acc.set(key, (acc.get(key) || 0) + Number(x.qty || 0));
+        return acc;
+      }, new Map());
     return ccdcRows
       .filter((x) => !x.isDeleted)
       .reduce((sum, row) => {
-        const prevActual = Number(ccdcMonthly.find((x) => x.rowId === row.id && x.monthKey === prevMonth && !x.isDeleted)?.actualQty || 0);
-        const prevReceipts = ccdcReceipts
-          .filter((x) => x.rowId === row.id && monthKey(x.receiptDate) === prevMonth && !x.isDeleted)
-          .reduce((s, x) => s + Number(x.qty || 0), 0);
+        const prevActual = Number(monthlyByRowMonth.get(`${row.id}|${prevMonth}`)?.actualQty || 0);
+        const prevReceipts = receiptQtyByRowMonth.get(`${row.id}|${prevMonth}`) || 0;
         const expected = prevActual + prevReceipts;
-        const cur = ccdcMonthly.find((x) => x.rowId === row.id && x.monthKey === currentMonth && !x.isDeleted);
+        const cur = monthlyByRowMonth.get(`${row.id}|${currentMonth}`);
         if (!cur) return sum;
         const diff = Number(cur.actualQty || 0) - expected;
         return diff < 0 ? sum + Math.abs(diff) : sum;
@@ -278,8 +333,21 @@ export default function Thietbi({ initialTab = "overview" }) {
         ccdcRows,
         ccdcMonthly,
         ccdcReceipts,
+        alertStates,
       }),
-    [regions, locations, equipmentRows, equipmentSummary, ccdcRows, ccdcMonthly, ccdcReceipts]
+    [regions, locations, equipmentRows, equipmentSummary, ccdcRows, ccdcMonthly, ccdcReceipts, alertStates]
+  );
+  const tabLabel = useMemo(
+    () =>
+      ({
+        overview: "Tổng quan",
+        equipment: "Thiết bị lớn",
+        ccdc: "CCDC",
+        repairs: "Lịch sử sửa chữa",
+        transfers: "Cấp phát / điều chuyển",
+        alerts: "Cảnh báo",
+      }[tab] || "Thiết bị"),
+    [tab]
   );
 
   const dashboardData = useMemo(() => {
@@ -300,14 +368,6 @@ export default function Thietbi({ initialTab = "overview" }) {
 
   const equipmentById = useMemo(() => Object.fromEntries(equipmentRows.map((x) => [x.id, x])), [equipmentRows]);
 
-  const saveRegions = (rows) => {
-    setRegions(rows);
-    writeArray(KEYS.regions, rows);
-  };
-  const saveLocations = (rows) => {
-    setLocations(rows);
-    writeArray(KEYS.locations, rows);
-  };
   const saveCcdcRows = (rows) => {
     setCcdcRows(rows);
     writeArray(KEYS.ccdcRows, rows);
@@ -332,9 +392,22 @@ export default function Thietbi({ initialTab = "overview" }) {
     setTransferHistory(rows);
     writeArray(KEYS.transferHistory, rows);
   };
+  const saveAlertStates = (rows) => {
+    setAlertStateRows(rows);
+    writeArray(KEYS.alertStates, rows);
+  };
 
   return (
-    <div className="equipment-page">
+    <div className="equipment-page ops-standard-page">
+      <ModuleShell
+        title="Quản lý thiết bị"
+        subtitle={`Phân hệ hiện tại: ${tabLabel}`}
+        stats={[
+          { label: "Thiết bị", value: dashboardData.totalEquipment || 0 },
+          { label: "CCDC", value: dashboardData.totalCcdc || 0 },
+          { label: "Cảnh báo nghiêm trọng", value: dashboardData.severeAlerts || 0, tone: "danger" },
+        ]}
+      />
       {tab === "overview" && (
         <EquipmentDashboard
           dashboard={dashboardData}
@@ -405,16 +478,19 @@ export default function Thietbi({ initialTab = "overview" }) {
         />
       )}
 
-      {tab === "alerts" && <AssetAlerts rows={alerts} />}
-
-      {tab === "catalog" && (
-        <LocationMaster
-          regions={regions}
-          locations={locations}
-          onSaveRegions={saveRegions}
-          onSaveLocations={saveLocations}
+      {tab === "alerts" && (
+        <AssetAlerts
+          rows={alerts}
+          onPatchStatus={(id, status) => {
+            const now = new Date().toISOString();
+            const next = alertStateRows.some((x) => x.id === id)
+              ? alertStateRows.map((x) => (x.id === id ? { ...x, status, updatedAt: now } : x))
+              : [{ id, status, updatedAt: now }, ...alertStateRows];
+            saveAlertStates(next);
+          }}
         />
       )}
+
     </div>
   );
 }

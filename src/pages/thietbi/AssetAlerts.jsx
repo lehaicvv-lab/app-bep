@@ -9,7 +9,7 @@ function actionHint(row) {
   return "Xác minh hiện trạng và cập nhật xử lý trong ca trực.";
 }
 
-export default function AssetAlerts({ rows }) {
+export default function AssetAlerts({ rows, onPatchStatus }) {
   const [filters, setFilters] = useState({
     fromDate: "",
     toDate: "",
@@ -174,7 +174,19 @@ export default function AssetAlerts({ rows }) {
                   <td>{row.message}</td>
                   <td>{actionHint(row)}</td>
                   <td>{row.detectedAt}</td>
-                  <td>{row.status || "Chưa xử lý"}</td>
+                  <td>
+                    <select
+                      value={row.status || "Chưa xử lý"}
+                      onChange={(e) => {
+                        if (typeof onPatchStatus === "function") onPatchStatus(row.id, e.target.value);
+                      }}
+                    >
+                      <option value="Chưa xử lý">Chưa xử lý</option>
+                      <option value="Đang xử lý">Đang xử lý</option>
+                      <option value="Đã xử lý">Đã xử lý</option>
+                      <option value="Theo dõi thêm">Theo dõi thêm</option>
+                    </select>
+                  </td>
                 </tr>
               ))}
               {!filteredRows.length && (

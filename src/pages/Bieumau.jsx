@@ -691,7 +691,7 @@ ${docNode.outerHTML}
   }, [previewMode, isExplanationForm, isStatementForm, isNoticeForm]);
 
   return (
-    <div className="company-forms-page">
+    <div className="company-forms-page ops-standard-page">
       <div className="company-form-card">
         <div className="company-form-head">
           <div>

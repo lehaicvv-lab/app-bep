@@ -1,4 +1,5 @@
-import { DEFAULT_DEPARTMENTS, STORAGE_PREFIX } from "./constants.js";
+import { STORAGE_PREFIX } from "./constants.js";
+import { loadDepartments, loadShifts, saveDepartments } from "../../systemCatalog/masterData.js";
 import { emptyAttendancePayload, ensureAttendanceShape, uid } from "./utils.js";
 
 function readJson(key, fallback) {
@@ -33,10 +34,15 @@ export function evalMgmtKey(yearMonth) {
 
 export function loadAttendance(date) {
   const catalog = loadDepartmentCatalog();
+  const shiftNames = loadShifts().map((s) => s.name);
+  const defaultShift = shiftNames[0] || "Ca ngày";
   const key = attendanceKey(date);
   const raw = readJson(key, null);
-  if (!raw) return emptyAttendancePayload(date, "Ca ngày", catalog);
+  if (!raw) return emptyAttendancePayload(date, defaultShift, catalog);
   const fixed = ensureAttendanceShape({ ...raw, date }, catalog, { includeUnknownDepartments: false });
+  if (shiftNames.length && fixed.shift && !shiftNames.includes(fixed.shift)) {
+    return { ...fixed, shift: defaultShift };
+  }
   return fixed;
 }
 
@@ -45,39 +51,12 @@ export function saveAttendance(payload) {
   writeJson(key, payload);
 }
 
-function normalizeDeptName(name, fallback = "Bộ phận") {
-  const t = String(name || "").trim();
-  return t || fallback;
-}
-
 export function loadDepartmentCatalog() {
-  const raw = readJson(departmentCatalogKey(), null);
-  if (!Array.isArray(raw) || raw.length === 0) {
-    return DEFAULT_DEPARTMENTS.map((d) => ({ id: d.id, name: d.name }));
-  }
-  const seen = new Set();
-  const out = [];
-  for (const d of raw) {
-    if (!d || !d.id || seen.has(d.id)) continue;
-    seen.add(d.id);
-    out.push({ id: d.id, name: normalizeDeptName(d.name, "Bộ phận") });
-  }
-  return out.length > 0 ? out : DEFAULT_DEPARTMENTS.map((d) => ({ id: d.id, name: d.name }));
+  return loadDepartments();
 }
 
 export function saveDepartmentCatalog(list) {
-  const seen = new Set();
-  const cleaned = [];
-  for (const d of Array.isArray(list) ? list : []) {
-    if (!d || !d.id || seen.has(d.id)) continue;
-    seen.add(d.id);
-    cleaned.push({ id: d.id, name: normalizeDeptName(d.name, "Bộ phận") });
-  }
-  if (cleaned.length === 0) {
-    writeJson(departmentCatalogKey(), DEFAULT_DEPARTMENTS.map((d) => ({ id: d.id, name: d.name })));
-    return;
-  }
-  writeJson(departmentCatalogKey(), cleaned);
+  saveDepartments(list);
 }
 
 export function loadEvalStaff(period, ref) {

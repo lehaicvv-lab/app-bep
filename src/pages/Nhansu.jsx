@@ -6,6 +6,7 @@ import TimesheetTab from "./nhansu/TimesheetTab.jsx";
 import EvaluationTab from "./nhansu/EvaluationTab.jsx";
 import { todayIsoDate } from "./nhansu/utils.js";
 import { loadAttendance } from "./nhansu/storage.js";
+import ModuleShell from "../components/ModuleShell.jsx";
 
 function IconSave() {
   return (
@@ -116,25 +117,24 @@ export default function Nhansu({ initialTab = "overview" }) {
   }, [workDate]);
 
   return (
-    <div className="ns-page" key={reloadKey}>
+    <div className="ns-page ops-standard-page" key={reloadKey}>
       <div className="ns-shell">
-        <header className="ns-report-head">
-          <div className="ns-eyebrow">SKY CATERING · NHÂN SỰ</div>
-          <h1 className="ns-report-title">Nhân sự</h1>
-          <div className="ns-report-subtitle">{TAB_LABELS[tab] || tab}</div>
-          <div className="ns-report-controls">
-            <label className="ns-field">
-              <span>Ngày làm việc</span>
-              <input className="ns-input ns-report-date" type="date" value={workDate} onChange={(e) => setWorkDate(e.target.value)} />
-            </label>
-          </div>
-          <div className="ns-report-summary">
-            <span>Ngày: {displayDate}</span>
-            <span>Tổng NS: {attendanceSummary.total}</span>
-            <span className="ns-stat-ok">Có mặt: {attendanceSummary.present}</span>
-            <span className="ns-stat-warn">Vắng: {attendanceSummary.absent}</span>
-          </div>
-        </header>
+        <ModuleShell
+          title="Nhân sự"
+          subtitle={TAB_LABELS[tab] || tab}
+          notice={`Ngày làm việc: ${displayDate}`}
+          stats={[
+            { label: "Tổng NS", value: attendanceSummary.total },
+            { label: "Có mặt", value: attendanceSummary.present },
+            { label: "Vắng", value: attendanceSummary.absent, tone: "danger" },
+          ]}
+        />
+        <div className="ns-report-controls">
+          <label className="ns-field">
+            <span>Ngày làm việc</span>
+            <input className="ns-input ns-report-date" type="date" value={workDate} onChange={(e) => setWorkDate(e.target.value)} />
+          </label>
+        </div>
 
         {tab === "overview" && <OverviewTab />}
         {tab === "attendance" && (

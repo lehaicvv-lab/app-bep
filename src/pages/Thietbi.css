@@ -1271,3 +1271,328 @@ form.equipment-inline-form[data-active="true"] {
   outline: 2px solid rgba(34, 197, 94, 0.45);
   outline-offset: 2px;
 }
+
+/* --- Danh mục hệ thống: bố cục gọn, phông 10–12px --- */
+.system-catalog-master {
+  font-size: 11px;
+  gap: 8px;
+  padding: 8px 10px 14px;
+}
+
+.system-catalog-master .ops-module-shell {
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
+.system-catalog-master .ops-module-shell__head {
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.system-catalog-master .ops-module-shell__title {
+  font-size: 17px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.system-catalog-master .ops-module-shell__subtitle {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.system-catalog-master .equipment-section {
+  gap: 6px;
+}
+
+.system-catalog-master .system-catalog-block {
+  margin-top: 10px;
+}
+
+/* Ghi đè ops-standard.css (.ops-standard-page .equipment-title { font-size: 42px !important }) */
+.system-catalog-master.ops-standard-page .equipment-title {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  font-weight: 700 !important;
+  color: #1f5f3b !important;
+  letter-spacing: 0 !important;
+}
+
+.system-catalog-master.ops-standard-page .equipment-card {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: none !important;
+  box-shadow: none !important;
+  background: #fafcfb;
+}
+
+.system-catalog-master .equipment-card-head h3 {
+  font-size: 12px;
+}
+
+.system-catalog-master .equipment-form-grid,
+.system-catalog-master .equipment-form-grid--4 {
+  gap: 6px;
+}
+
+.system-catalog-master .equipment-form-grid--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 960px) {
+  .system-catalog-master .equipment-form-grid--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.system-catalog-master .equipment-field {
+  gap: 2px;
+}
+
+.system-catalog-master .equipment-field span {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.system-catalog-master .equipment-field input,
+.system-catalog-master .equipment-field select,
+.system-catalog-master .equipment-field textarea {
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.system-catalog-master .equipment-actions {
+  margin-top: 2px;
+  gap: 6px;
+}
+
+.system-catalog-master .equipment-btn {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.system-catalog-master .equipment-btn--icon {
+  min-width: 26px;
+  padding: 2px 4px;
+  line-height: 1.2;
+}
+
+.system-catalog-master .equipment-btn--icon:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.system-catalog-master.ops-standard-page .equipment-table-wrap {
+  margin-top: 4px;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.system-catalog-master .equipment-table,
+.system-catalog-master .equipment-table--compact {
+  min-width: 0;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.system-catalog-master .equipment-table th,
+.system-catalog-master .equipment-table td {
+  font-size: 11px;
+  padding: 3px 5px;
+  line-height: 1.35;
+  word-break: break-word;
+  vertical-align: middle;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-bottom: 1px solid #e6efe8 !important;
+}
+
+.system-catalog-master .equipment-table th {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.system-catalog-master .equipment-table th:nth-child(1),
+.system-catalog-master .equipment-table td:nth-child(1) {
+  width: 40px;
+  text-align: center;
+}
+
+.system-catalog-master .equipment-table--compact thead tr th:last-child,
+.system-catalog-master .equipment-table--compact tbody tr td:last-child {
+  width: 44px;
+  text-align: center;
+}
+
+.system-catalog-hint {
+  margin: 0 0 8px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.system-catalog-master .catalog-shift-id {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #334155;
+  background: transparent;
+  padding: 0;
+}
+
+.system-catalog-master.ops-standard-page .equipment-card-head {
+  border-bottom: 1px solid #e8f0eb !important;
+  margin-bottom: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.system-catalog-master.ops-standard-page .location-master-card .equipment-card-head.location-master-card-head {
+  border-bottom: none !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 2px !important;
+}
+
+/* LocationMaster: toolbar thu gọn + nút thêm có icon (ghi đè ops-standard .equipment-btn) */
+.location-master-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+.location-master-card-head h3 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.location-master-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+}
+
+.location-master-head-actions .location-master-toggle,
+.location-master-head-actions .location-master-add-btn {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.location-master-head-actions .location-master-toggle svg,
+.location-master-head-actions .location-master-add-btn svg {
+  pointer-events: none;
+}
+
+.location-master-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #1f5f3b;
+  cursor: pointer;
+}
+
+.location-master-toggle:hover {
+  background: rgba(22, 101, 52, 0.06);
+}
+
+.location-master-toggle:focus-visible {
+  outline: 2px solid rgba(34, 197, 94, 0.45);
+  outline-offset: 1px;
+}
+
+.location-master-chevron {
+  display: block;
+  transition: transform 0.2s ease;
+}
+
+.location-master-chevron.is-open {
+  transform: rotate(0deg);
+}
+
+.location-master-chevron:not(.is-open) {
+  transform: rotate(-90deg);
+}
+
+.location-master-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.location-master-card-body {
+  padding-top: 6px;
+}
+
+.location-master-card-body[hidden] {
+  display: none !important;
+}
+
+.system-catalog-master .location-master-toggle {
+  width: 24px;
+  height: 22px;
+}
+
+.system-catalog-master .location-master-add-btn.equipment-btn {
+  min-height: 0 !important;
+  height: auto !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  padding: 3px 8px !important;
+  border-radius: 6px !important;
+  line-height: 1.25;
+  border: none !important;
+  background: transparent !important;
+  color: #166534 !important;
+  box-shadow: none !important;
+}
+
+.system-catalog-master .location-master-add-btn.equipment-btn:hover {
+  background: rgba(22, 101, 52, 0.07) !important;
+  color: #14532d !important;
+}
+
+/* Nút xoá phẳng 2D đỏ — không viền (LocationMaster + SystemCatalog) */
+.catalog-flat-del-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: #dc2626;
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 0;
+}
+
+.catalog-flat-del-btn:hover {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+}
+
+.catalog-flat-del-btn:focus-visible {
+  outline: 2px solid rgba(220, 38, 38, 0.35);
+  outline-offset: 1px;
+}
+
+.catalog-flat-del-btn:active {
+  color: #991b1b;
+}
