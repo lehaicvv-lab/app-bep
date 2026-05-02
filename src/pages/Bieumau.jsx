@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./BieuMau.css";
+import {
+  IconEyeLine,
+  IconEyeOffLine,
+  IconFileLine,
+  IconPlusLine,
+  IconPrintLine,
+  IconRotateLine,
+  IconSaveLine,
+} from "../components/icons/AppLineIcons.jsx";
 
 const STORAGE_KEY = "company_forms_history";
 const LEGACY_COMPANY_NAME = "CÔNG TY CỔ PHẦN SXTM MẠNH PHÚC";
@@ -1523,13 +1532,13 @@ ${docNode.outerHTML}
         {!isUnderConstruction && (
           <div className="company-form-actions no-print">
           <button type="button" className="company-btn company-btn--ghost company-btn--icon" onClick={handleNew} title="Tạo mới" aria-label="Tạo mới">
-            <span aria-hidden>＋</span>
+            <span aria-hidden><IconPlusLine /></span>
           </button>
           <button type="button" className="company-btn company-btn--primary company-btn--icon" onClick={handleSave} title="Lưu" aria-label="Lưu">
-            <span aria-hidden>💾</span>
+            <span aria-hidden><IconSaveLine /></span>
           </button>
           <button type="button" className="company-btn company-btn--ghost company-btn--icon" onClick={handleReset} title="Reset" aria-label="Reset">
-            <span aria-hidden>↺</span>
+            <span aria-hidden><IconRotateLine /></span>
           </button>
           <button
             type="button"
@@ -1545,13 +1554,13 @@ ${docNode.outerHTML}
               setPreviewMode((v) => !v);
             }}
           >
-            <span aria-hidden>{previewMode ? "🙈" : "👁"}</span>
+            <span aria-hidden>{previewMode ? <IconEyeOffLine /> : <IconEyeLine />}</span>
           </button>
           <button type="button" className="company-btn company-btn--ghost company-btn--icon" onClick={handlePrint} title="In" aria-label="In">
-            <span aria-hidden>🖨</span>
+            <span aria-hidden><IconPrintLine /></span>
           </button>
           <button type="button" className="company-btn company-btn--ghost company-btn--icon" onClick={handleExportWord} title="Xuất Word" aria-label="Xuất Word">
-            <span aria-hidden>📄</span>
+            <span aria-hidden><IconFileLine /></span>
           </button>
           {msg ? <span className="company-msg">{msg}</span> : null}
           </div>

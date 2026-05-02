@@ -1,5 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  authenticateCredentials,
+  clearAuthSession,
+  createUserProfile,
+  deleteUserProfile,
+  fetchUsersProfile,
+  getCurrentUser,
+  hashPassword,
+  markSessionForUser,
+  notifyAuthChanged,
+  normalizePermissions as normalizeRemotePermissions,
+  permissionsToSupabasePayload,
+  updateUserProfile,
+} from "../utils/accountAuth.js";
+import {
   createSnapshot,
   downloadBackup,
   ensureAutoSnapshot,
@@ -9,9 +23,6 @@ import {
   restoreFromBackupPayload,
   rollbackToSnapshot,
 } from "../utils/appBackup.js";
-
-const STORAGE_KEY = "app_bep_accounts_v2";
-const CURRENT_USER_KEY = "app_bep_current_user_v1";
 
 const PAGE_OPTIONS = [
   { key: "dashboard", label: "Dashboard" },
@@ -166,52 +177,6 @@ const INITIAL_FORM = {
   area: "",
 };
 
-const DEFAULT_ACCOUNTS = [
-  {
-    id: 1,
-    fullName: "QUOC HAI",
-    username: "admin",
-    password: "123456",
-    role: "admin",
-    area: "Toàn hệ thống",
-    active: true,
-    permissions: clonePermissions(ROLE_PRESETS.admin),
-  },
-  {
-    id: 2,
-    fullName: "Hào FR",
-    username: "hao.fr",
-    password: "123456",
-    role: "staff",
-    area: "Nhơn Trạch",
-    active: true,
-    permissions: {
-      pages: {
-        dashboard: false,
-        report: true,
-        safety: false,
-        hr: false,
-        account: false,
-      },
-      reportTabs: {
-        summary: false,
-        management: false,
-        service: false,
-        accounting: true,
-        warehouse: false,
-        bep: false,
-      },
-      actions: {
-        view: true,
-        create: true,
-        edit: true,
-        delete: false,
-        print: true,
-      },
-    },
-  },
-];
-
 function clonePermissions(source) {
   return {
     pages: { ...source.pages },
@@ -220,63 +185,8 @@ function clonePermissions(source) {
   };
 }
 
-function normalizePermissions(inputPermissions = EMPTY_PERMISSIONS) {
-  const legacyPageMap = {
-    report: "baocaongay",
-    safety: "antoan",
-    hr: "nhansu",
-    account: "taikhoan",
-  };
-  const next = clonePermissions(EMPTY_PERMISSIONS);
-  const incomingPages = inputPermissions?.pages || {};
-  Object.entries(incomingPages).forEach(([key, value]) => {
-    const mapped = legacyPageMap[key] || key;
-    if (mapped in next.pages) next.pages[mapped] = Boolean(value);
-  });
-  const incomingTabs = inputPermissions?.reportTabs || {};
-  Object.keys(next.reportTabs).forEach((k) => {
-    if (k in incomingTabs) next.reportTabs[k] = Boolean(incomingTabs[k]);
-  });
-  const incomingActions = inputPermissions?.actions || {};
-  Object.keys(next.actions).forEach((k) => {
-    if (k in incomingActions) next.actions[k] = Boolean(incomingActions[k]);
-  });
-  return next;
-}
-
-function hashPassword(value) {
-  const raw = String(value || "");
-  let hash = 5381;
-  for (let i = 0; i < raw.length; i++) {
-    hash = (hash * 33) ^ raw.charCodeAt(i);
-  }
-  return `h:${(hash >>> 0).toString(16)}`;
-}
-
-function loadAccounts() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return DEFAULT_ACCOUNTS.map((x) => ({
-        ...x,
-        password: hashPassword(x.password),
-        permissions: normalizePermissions(x.permissions),
-      }));
-    }
-    const parsed = JSON.parse(raw);
-    const rows = Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_ACCOUNTS;
-    return rows.map((x) => ({
-      ...x,
-      password: String(x.password || "").startsWith("h:") ? x.password : hashPassword(x.password),
-      permissions: normalizePermissions(x.permissions),
-    }));
-  } catch {
-    return DEFAULT_ACCOUNTS;
-  }
-}
-
-function saveAccounts(accounts) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+function normalizePermissions(inputPermissions = EMPTY_PERMISSIONS, role = "staff") {
+  return normalizeRemotePermissions(inputPermissions, role);
 }
 
 function roleLabel(role) {
@@ -373,17 +283,30 @@ function PermissionGroup({
 
 export default function TaiKhoan() {
   const [form, setForm] = useState(INITIAL_FORM);
-  const [accounts, setAccounts] = useState(DEFAULT_ACCOUNTS);
+  const [accounts, setAccounts] = useState([]);
   const [notice, setNotice] = useState({ type: "", message: "" });
   const [permissionTargetId, setPermissionTargetId] = useState(null);
   const [snapshotRows, setSnapshotRows] = useState([]);
   const [restoreBusy, setRestoreBusy] = useState(false);
   const [currentUsername, setCurrentUsername] = useState("");
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
   const backupInputRef = useRef(null);
 
+  const reloadAccounts = async () => {
+    setLoadingAccounts(true);
+    try {
+      const rows = await fetchUsersProfile();
+      setAccounts(rows.map((item) => ({ ...item, permissions: normalizePermissions(item.permissions, item.role) })));
+      setCurrentUsername(getCurrentUser()?.username || "");
+    } catch (error) {
+      showNotice("error", error?.message || "Không tải được danh sách tài khoản từ Supabase.");
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
   useEffect(() => {
-    setAccounts(loadAccounts());
-    setCurrentUsername(localStorage.getItem(CURRENT_USER_KEY) || "admin");
+    reloadAccounts();
   }, []);
 
   useEffect(() => {
@@ -395,14 +318,11 @@ export default function TaiKhoan() {
     }
   }, []);
 
-  useEffect(() => {
-    saveAccounts(accounts);
-  }, [accounts]);
-
   const permissionTarget = useMemo(
     () => accounts.find((item) => item.id === permissionTargetId) || null,
     [accounts, permissionTargetId]
   );
+  const currentSessionUser = useMemo(() => getCurrentUser(), [currentUsername, accounts]);
 
   const totalAccounts = accounts.length;
   const activeAccounts = accounts.filter((item) => item.active).length;
@@ -422,7 +342,7 @@ export default function TaiKhoan() {
     if (notice.message) clearNotice();
   };
 
-  const handleCreateAccount = (e) => {
+  const handleCreateAccount = async (e) => {
     e.preventDefault();
 
     if (
@@ -450,20 +370,21 @@ export default function TaiKhoan() {
 
     const preset = ROLE_PRESETS[form.role] || ROLE_PRESETS.staff;
 
-    const newAccount = {
-      id: Date.now(),
-      fullName: form.fullName.trim(),
-      username: form.username.trim(),
-      password: hashPassword(form.password.trim()),
-      role: form.role,
-      area: form.area.trim(),
-      active: true,
-      permissions: clonePermissions(preset),
-    };
-
-    setAccounts((prev) => [newAccount, ...prev]);
-    setForm(INITIAL_FORM);
-    showNotice("success", `Đã tạo tài khoản "${newAccount.username}".`);
+    try {
+      const newAccount = await createUserProfile({
+        full_name: form.fullName.trim(),
+        username: form.username.trim(),
+        password: hashPassword(form.password.trim()),
+        role: form.role,
+        active: true,
+        permissions: permissionsToSupabasePayload(clonePermissions(preset)),
+      });
+      setAccounts((prev) => [{ ...newAccount, permissions: normalizePermissions(newAccount.permissions, newAccount.role) }, ...prev]);
+      setForm(INITIAL_FORM);
+      showNotice("success", `Đã tạo tài khoản "${newAccount.username}".`);
+    } catch (error) {
+      showNotice("error", error?.message || "Không tạo được tài khoản.");
+    }
   };
 
   const handleResetForm = () => {
@@ -471,7 +392,7 @@ export default function TaiKhoan() {
     showNotice("info", "Đã làm mới biểu mẫu.");
   };
 
-  const handleToggleStatus = (id) => {
+  const handleToggleStatus = async (id) => {
     const target = accounts.find((item) => item.id === id);
     if (!target) return;
     const activeAdmins = accounts.filter((x) => x.role === "admin" && x.active);
@@ -480,11 +401,17 @@ export default function TaiKhoan() {
       return;
     }
 
-    setAccounts((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, active: !item.active } : item
-      )
-    );
+    try {
+      const updated = await updateUserProfile(id, { active: !target.active });
+      setAccounts((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, ...updated, permissions: normalizePermissions(updated.permissions, updated.role) } : item
+        )
+      );
+    } catch (error) {
+      showNotice("error", error?.message || "Không cập nhật được trạng thái tài khoản.");
+      return;
+    }
 
     showNotice(
       target.active ? "warning" : "success",
@@ -494,7 +421,7 @@ export default function TaiKhoan() {
     );
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const target = accounts.find((item) => item.id === id);
     if (!target) return;
     const activeAdmins = accounts.filter((x) => x.role === "admin" && x.active);
@@ -506,9 +433,14 @@ export default function TaiKhoan() {
     const ok = window.confirm(`Xóa tài khoản "${target.username}"?`);
     if (!ok) return;
 
-    setAccounts((prev) => prev.filter((item) => item.id !== id));
-    if (permissionTargetId === id) setPermissionTargetId(null);
-    showNotice("error", `Đã xóa tài khoản "${target.username}".`);
+    try {
+      await deleteUserProfile(id);
+      setAccounts((prev) => prev.filter((item) => item.id !== id));
+      if (permissionTargetId === id) setPermissionTargetId(null);
+      showNotice("error", `Đã xóa tài khoản "${target.username}".`);
+    } catch (error) {
+      showNotice("error", error?.message || "Không xóa được tài khoản.");
+    }
   };
 
   const applyRolePreset = (accountId, role) => {
@@ -549,10 +481,54 @@ export default function TaiKhoan() {
   };
 
   const handleSwitchCurrentUser = (username) => {
+    if (!username) return;
+    const acting = accounts.find((a) => a.username === currentUsername && a.active);
+    const isAdminSession = acting?.role === "admin";
+
+    if (isAdminSession) {
+      const target = accounts.find((a) => a.username === username && a.active);
+      if (!target) return;
+      markSessionForUser(target);
+      setCurrentUsername(username);
+      notifyAuthChanged();
+      showNotice("info", `Admin đã chuyển phiên làm việc sang "${username}".`);
+      return;
+    }
+
+    const pwd = window.prompt(`Nhập mật khẩu cho tài khoản "${username}"`);
+    if (pwd == null || pwd === "") return;
+    const res = authenticateCredentials(username, pwd);
+    if (!res.ok) {
+      showNotice("error", res.message);
+      return;
+    }
+    markSessionForUser(res.user);
     setCurrentUsername(username);
-    localStorage.setItem(CURRENT_USER_KEY, username);
-    showNotice("info", `Đã chuyển tài khoản thao tác sang "${username}".`);
+    notifyAuthChanged();
+    showNotice("success", `Đã đăng nhập "${username}".`);
   };
+
+  const handleLogout = () => {
+    clearAuthSession();
+    setCurrentUsername("");
+    notifyAuthChanged();
+    showNotice("info", "Đã đăng xuất. Vui lòng đăng nhập lại từ màn hình chính.");
+  };
+
+  if (currentSessionUser && currentSessionUser.role !== "admin") {
+    return (
+      <div className="ops-standard-page" style={styles.page}>
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>
+            <div>
+              <h2 style={styles.cardTitle}>Tài khoản</h2>
+              <p style={styles.cardDesc}>Bạn không có quyền truy cập màn hình quản lý tài khoản.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const refreshSnapshots = () => {
     setSnapshotRows(getSnapshotHistory());
@@ -597,7 +573,7 @@ export default function TaiKhoan() {
       );
       if (!ok) return;
       restoreFromBackupPayload(payload, file.name);
-      setAccounts(loadAccounts());
+      reloadAccounts();
       refreshSnapshots();
       showNotice("success", "Khôi phục dữ liệu thành công. Đã tự tạo snapshot trước/sau restore.");
     } catch (error) {
@@ -612,7 +588,7 @@ export default function TaiKhoan() {
     if (!ok) return;
     try {
       rollbackToSnapshot(snapshotId);
-      setAccounts(loadAccounts());
+      reloadAccounts();
       refreshSnapshots();
       showNotice("warning", "Đã rollback dữ liệu theo snapshot đã chọn.");
     } catch (error) {
@@ -650,7 +626,7 @@ export default function TaiKhoan() {
             <div style={styles.summaryLabel}>Tài khoản đang sử dụng</div>
             <select
               style={{ ...styles.input, height: 42 }}
-              value={currentUsername}
+              value={currentUsername || ""}
               onChange={(e) => handleSwitchCurrentUser(e.target.value)}
             >
               {accounts
@@ -661,6 +637,9 @@ export default function TaiKhoan() {
                   </option>
                 ))}
             </select>
+            <button type="button" style={{ ...styles.topAction, marginTop: 10, width: "100%" }} onClick={handleLogout}>
+              Đăng xuất
+            </button>
           </div>
         </div>
       </div>
@@ -1030,9 +1009,28 @@ export default function TaiKhoan() {
               <button
                 type="button"
                 style={styles.primaryButton}
-                onClick={() => {
-                  showNotice("success", `Đã lưu phân quyền cho "${permissionTarget.username}".`);
-                  setPermissionTargetId(null);
+                onClick={async () => {
+                  try {
+                    const updated = await updateUserProfile(permissionTarget.id, {
+                      role: permissionTarget.role,
+                      permissions: permissionsToSupabasePayload(permissionTarget.permissions),
+                    });
+                    setAccounts((prev) =>
+                      prev.map((item) =>
+                        item.id === permissionTarget.id
+                          ? { ...item, ...updated, permissions: normalizePermissions(updated.permissions, updated.role) }
+                          : item
+                      )
+                    );
+                    showNotice("success", `Đã lưu phân quyền cho "${permissionTarget.username}".`);
+                    setPermissionTargetId(null);
+                    if (currentUsername === permissionTarget.username) {
+                      markSessionForUser(updated);
+                      notifyAuthChanged();
+                    }
+                  } catch (error) {
+                    showNotice("error", error?.message || "Không lưu được phân quyền.");
+                  }
                 }}
               >
                 Lưu phân quyền

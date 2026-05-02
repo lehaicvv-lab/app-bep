@@ -383,3 +383,76 @@
   border-radius: var(--ops-radius-lg);
   background: #fff;
 }
+
+/* Global typography normalization (all modules) */
+.ops-standard-page .ops-module-shell__title,
+.ops-standard-page .equipment-title,
+.ops-standard-page .dx-card h2,
+.ops-standard-page .ns-report-title,
+.ops-standard-page .company-form-title,
+.ops-standard-page .report-dash-title {
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+}
+
+.ops-standard-page .ops-module-shell__subtitle,
+.ops-standard-page .ops-module-shell__notice,
+.ops-standard-page .ops-module-shell__stat-label,
+.ops-standard-page .equipment-card-head h3,
+.ops-standard-page .dx-card-header h3,
+.ops-standard-page .ns-eyebrow,
+.ops-standard-page .report-dash-eyebrow {
+  font-size: 10px !important;
+}
+
+.ops-standard-page .ops-module-shell__stat-value {
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+}
+
+.ops-standard-page,
+.ops-standard-page p,
+.ops-standard-page li,
+.ops-standard-page label,
+.ops-standard-page span,
+.ops-standard-page button,
+.ops-standard-page input,
+.ops-standard-page select,
+.ops-standard-page textarea,
+.ops-standard-page .equipment-table td,
+.ops-standard-page .dx-week-plan-table td,
+.ops-standard-page .ns-table td,
+.ops-standard-page .report-master-table td,
+.ops-standard-page .report-detail-table td {
+  font-size: 11px !important;
+}
+
+/* Unified icon rendering across modules (match Báo cáo ngày style) */
+.ops-standard-page button svg,
+.ops-standard-page .btn-icon svg,
+.ops-standard-page .ns-btn-icon svg,
+.ops-standard-page .report-toolbar-saas-primary-icon svg,
+.ops-standard-page .report-toolbar-saas-ghost-icon svg,
+.ops-standard-page .catalog-flat-del-btn svg,
+.ops-standard-page .location-master-toggle svg,
+.ops-standard-page .location-master-add-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+  display: block;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.ops-standard-page button svg path,
+.ops-standard-page button svg circle,
+.ops-standard-page button svg rect,
+.ops-standard-page button svg line,
+.ops-standard-page button svg polyline,
+.ops-standard-page button svg polygon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

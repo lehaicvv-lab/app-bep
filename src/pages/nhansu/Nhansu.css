@@ -1168,3 +1168,47 @@
     font-size: 1.05rem;
   }
 }
+
+/* Typography compact mode for Nhân sự module */
+.ns-page {
+  font-size: 11px;
+}
+
+.ns-page .ops-module-shell__title {
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+}
+
+.ns-page .ops-module-shell__subtitle,
+.ns-page .ops-module-shell__notice,
+.ns-page .ops-module-shell__stat-label {
+  font-size: 11px !important;
+}
+
+.ns-page .ops-module-shell__stat-value {
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+}
+
+.ns-page .ns-report-title {
+  font-size: 14px !important;
+  line-height: 1.25;
+}
+
+.ns-page .ns-report-subtitle,
+.ns-page .ns-btn,
+.ns-page .ns-input,
+.ns-page .ns-tab-btn,
+.ns-page .ns-segment-btn,
+.ns-page .ns-table th,
+.ns-page .ns-table td {
+  font-size: 11px !important;
+}
+
+.ns-page .ns-eyebrow,
+.ns-page .ns-kpi-label,
+.ns-page .ns-field span,
+.ns-page .ns-att-copy-notice {
+  font-size: 10px !important;
+}

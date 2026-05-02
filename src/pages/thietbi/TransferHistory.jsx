@@ -1,4 +1,5 @@
 import { useState } from "react";
+import IconTrash2D from "../../components/icons/IconTrash2D.jsx";
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -117,7 +118,7 @@ export default function TransferHistory({ rows, equipmentRows, ccdcRows, locatio
                   <td>{row.receiver || "—"}</td>
                   <td>{row.reason || "—"}</td>
                   <td>{row.note || "—"}</td>
-                  <td><button className="equipment-btn equipment-btn--icon danger" title="Xoá" onClick={() => softDelete(row.id)}>🗑</button></td>
+                  <td><button className="equipment-btn equipment-btn--icon danger" title="Xoá" onClick={() => softDelete(row.id)}><IconTrash2D /></button></td>
                 </tr>
               ))}
               {!activeRows.length && <tr><td colSpan={10} className="equipment-empty">Chưa có lịch sử cấp phát / điều chuyển.</td></tr>}

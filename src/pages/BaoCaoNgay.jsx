@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { buildSiteSelectOptions, getShiftNames } from "../systemCatalog/masterData.js";
 import { useMasterCatalogSnapshot } from "../systemCatalog/useMasterCatalogSnapshot.js";
 
@@ -2228,6 +2228,197 @@ function SectionIssueDetailTable({ section, onSectionChange, errors, quickFields
   );
 }
 
+/** Card chi tiết phát sinh — layout dọc, dùng cho Nhóm A (Management). */
+function SectionIssueDetailCard({ sectionTitle, section, onSectionChange, errors, quickFields = [], onClose }) {
+  const firstInputRef = useRef(null);
+  useEffect(() => {
+    firstInputRef.current?.focus();
+  }, []);
+
+  return (
+    <div className="report-issue-detail-card">
+      <div className="report-issue-detail-head">
+        <div>
+          <div className="report-issue-detail-eyebrow">Nhóm A · Chuẩn bị vận hành</div>
+          <h3 className="report-issue-detail-title">Chi tiết phát sinh: {sectionTitle}</h3>
+        </div>
+        <button type="button" className="report-toolbar-saas-ghost" onClick={onClose}>
+          Đóng / Quay lại danh sách
+        </button>
+      </div>
+
+      <div className="report-issue-detail-grid">
+        <label className="report-issue-field report-issue-field--full">
+          <span>Nội dung phát sinh</span>
+          <input
+            ref={firstInputRef}
+            className="report-input"
+            type="text"
+            placeholder="Mô tả ngắn gọn"
+            value={section.issueTitle}
+            onChange={(e) => onSectionChange("issueTitle", e.target.value)}
+          />
+          {errors.issueTitle ? <div className="report-error-text">{errors.issueTitle}</div> : null}
+        </label>
+
+        <label className="report-issue-field">
+          <span>Nguyên nhân</span>
+          <textarea
+            className="report-textarea"
+            rows={2}
+            placeholder="Nguyên nhân"
+            value={section.cause}
+            onChange={(e) => onSectionChange("cause", e.target.value)}
+          />
+          {errors.cause ? <div className="report-error-text">{errors.cause}</div> : null}
+        </label>
+
+        <label className="report-issue-field">
+          <span>Hướng xử lý</span>
+          <textarea
+            className="report-textarea"
+            rows={2}
+            placeholder="Hướng xử lý"
+            value={section.actionTaken}
+            onChange={(e) => onSectionChange("actionTaken", e.target.value)}
+          />
+          {errors.actionTaken ? <div className="report-error-text">{errors.actionTaken}</div> : null}
+        </label>
+
+        <label className="report-issue-field">
+          <span>Trách nhiệm</span>
+          <select
+            className="report-select"
+            value={section.responsibility}
+            onChange={(e) => onSectionChange("responsibility", e.target.value)}
+          >
+            <option value="">—</option>
+            {RESPONSIBILITY_OPTIONS.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+          {errors.responsibility ? <div className="report-error-text">{errors.responsibility}</div> : null}
+        </label>
+
+        <label className="report-issue-field">
+          <span>Deadline</span>
+          <input
+            className="report-input report-input-date"
+            type="date"
+            value={section.issueDeadline || ""}
+            onChange={(e) => onSectionChange("issueDeadline", e.target.value)}
+          />
+        </label>
+
+        <label className="report-issue-field">
+          <span>Mức độ</span>
+          <select
+            className="report-select"
+            value={section.impactLevel}
+            onChange={(e) => onSectionChange("impactLevel", e.target.value)}
+          >
+            <option value="">Chọn mức độ</option>
+            {IMPACT_OPTIONS.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="report-issue-field">
+          <span>Kết quả</span>
+          <input
+            className="report-input"
+            type="text"
+            placeholder="Kết quả"
+            value={section.issueResult || ""}
+            onChange={(e) => onSectionChange("issueResult", e.target.value)}
+          />
+        </label>
+
+        <label className="report-issue-field">
+          <span>Nguồn lỗi</span>
+          <select
+            className="report-select"
+            value={section.issueSource}
+            onChange={(e) => onSectionChange("issueSource", e.target.value)}
+          >
+            <option value="">—</option>
+            {SOURCE_OPTIONS.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+          {errors.issueSource ? <div className="report-error-text">{errors.issueSource}</div> : null}
+        </label>
+
+        <label className="report-issue-field">
+          <span>Người phụ trách</span>
+          <input
+            className="report-input"
+            type="text"
+            placeholder="Họ tên"
+            value={section.issueOwner || ""}
+            onChange={(e) => onSectionChange("issueOwner", e.target.value)}
+          />
+        </label>
+
+        <label className="report-issue-field report-issue-field--full">
+          <span>Giá trị / Trạng thái</span>
+          <div className="report-issue-kpi-stack">
+            {quickFields.length === 0 ? (
+              <span className="report-issue-kpi-empty">—</span>
+            ) : (
+              quickFields.map((field) => (
+                <div key={field.key} className="report-issue-kpi-line report-issue-kpi-line-value">
+                  <span className="report-issue-kpi-label">{field.label}</span>
+                  {renderQuickFieldInput(field, section, onSectionChange)}
+                </div>
+              ))
+            )}
+          </div>
+        </label>
+
+        <label className="report-issue-field report-issue-field--full">
+          <span>Ghi chú</span>
+          <textarea
+            className="report-textarea"
+            rows={2}
+            placeholder="Ghi chú thêm (nếu có)"
+            value={section.note || ""}
+            onChange={(e) => onSectionChange("note", e.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="report-issue-actions">
+        <button
+          type="button"
+          className="report-toolbar-saas-primary"
+          onClick={() => {
+            onSectionChange("hasIssue", true);
+            onClose?.();
+          }}
+        >
+          <span className="report-toolbar-saas-primary-main">
+            <span className="report-toolbar-saas-primary-icon" aria-hidden>
+              <ToolbarIconCheck />
+            </span>
+            <span className="report-toolbar-saas-primary-text">Lưu phát sinh</span>
+          </span>
+        </button>
+        <button type="button" className="report-toolbar-saas-ghost" onClick={onClose}>
+          Đóng / Quay lại danh sách
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ChayHangPhatSinhSummary({ header, section }) {
   const { plan, rush, pct } = computeChayHangPlanRushPct(header, section);
   const tone = chayHangPctTone(pct, !!section?.hasIssue);
@@ -2601,6 +2792,10 @@ function SectionCard({
   onWarehouseIssueRowsChange,
   onProcurementCostRowsChange,
   isWarehouseAccountingMode = false,
+  isManagementGroupA = false,
+  isDetailOpen = false,
+  onOpenDetail,
+  onCloseDetail,
 }) {
   const hasVisibleErrors = Object.keys(errors).length > 0;
   const tone = deriveIssueTone(section);
@@ -2632,6 +2827,8 @@ function SectionCard({
         ? section.responsibility || "Quản lý"
       : section.responsibility || "—";
 
+  const detailOpen = section.hasIssue && (isManagementGroupA ? isDetailOpen : expanded);
+
   return (
     <>
       <tr
@@ -2643,7 +2840,14 @@ function SectionCard({
           <button
             type="button"
             className="report-expand-btn"
-            onClick={onToggle}
+            onClick={() => {
+              if (!section.hasIssue) return;
+              if (isManagementGroupA) {
+                detailOpen ? onCloseDetail?.() : onOpenDetail?.();
+              } else {
+                onToggle();
+              }
+            }}
             disabled={!section.hasIssue}
             aria-label={expanded ? "Thu gọn chi tiết" : "Mở rộng chi tiết"}
           >
@@ -2656,7 +2860,14 @@ function SectionCard({
             className="report-select"
             value={section.hasIssue ? "yes" : "no"}
             disabled={hsdAutoLock}
-            onChange={(e) => onSectionChange("hasIssue", e.target.value === "yes")}
+            onChange={(e) => {
+              const next = e.target.value === "yes";
+              onSectionChange("hasIssue", next);
+              if (isManagementGroupA) {
+                if (next) onOpenDetail?.();
+                else onCloseDetail?.();
+              }
+            }}
           >
             <option value="no">Không phát sinh</option>
             <option value="yes">Có phát sinh</option>
@@ -2698,6 +2909,23 @@ function SectionCard({
             title={section.hasIssue ? "Chỉnh trong form chi tiết (mở rộng)" : ""}
           />
         </td>
+        {isManagementGroupA ? (
+          <td className="report-cell report-cell-action">
+            <button
+              type="button"
+              className="report-toolbar-saas-ghost report-issue-add-btn"
+              onClick={() => {
+                onSectionChange("hasIssue", true);
+                onOpenDetail?.();
+              }}
+              aria-label="Thêm / sửa phát sinh"
+            >
+              <span className="report-toolbar-saas-ghost-icon" aria-hidden>
+                <ToolbarIconSave />
+              </span>
+            </button>
+          </td>
+        ) : null}
         <td className="report-cell">
           <input
             className="report-input"
@@ -2709,7 +2937,7 @@ function SectionCard({
         </td>
       </tr>
 
-      {section.hasIssue && expanded ? (
+      {detailOpen ? (
         <tr className="report-detail-row">
           <td className="report-cell" colSpan={6}>
             {detailVariant === "chayHang" && onChayHangRowsChange ? (
@@ -2776,6 +3004,15 @@ function SectionCard({
                   onProcurementCostRowsChange(pmRows.slice(0, -1));
                 }}
                 errors={errors}
+              />
+            ) : isManagementGroupA ? (
+              <SectionIssueDetailCard
+                sectionTitle={title}
+                section={section}
+                onSectionChange={onSectionChange}
+                errors={errors}
+                quickFields={quickFields}
+                onClose={onCloseDetail}
               />
             ) : (
               <SectionIssueDetailTable
@@ -2848,6 +3085,7 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
     atvstp: true,
     managerSummary: true,
   });
+  const [openIssueKey, setOpenIssueKey] = useState(null);
   const [saveMessage, setSaveMessage] = useState("");
   /** Chuỗi JSON đã lưu gần nhất (để badge “Chưa lưu” khi có chỉnh sửa). */
   const [persistedSig, setPersistedSig] = useState("");

@@ -1,4 +1,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  IconChartLine,
+  IconCheckLine,
+  IconEditLine,
+  IconPlusLine,
+  IconPrintLine,
+  IconRotateLine,
+  IconSaveLine,
+} from "../../components/icons/AppLineIcons.jsx";
+import IconTrash2D from "../../components/icons/IconTrash2D.jsx";
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -423,18 +433,19 @@ export default function CCDCInventory({
           <input value={owner} onChange={(e) => setOwner(e.target.value)} />
         </label>
       </div>
-      <div className="equipment-actions">
-        <button type="button" className="equipment-btn" onClick={addBlock}>
-          + Thêm khối khu vực
+      <div className="equipment-actions equipment-actions--toolbar">
+        <button type="button" className="equipment-btn equipment-btn--with-icon" onClick={addBlock}>
+          <IconPlusLine />
+          <span>Thêm khối khu vực</span>
         </button>
         <button type="button" className="equipment-btn equipment-btn--icon" onClick={() => window.alert("Dữ liệu đã được lưu tự động theo localStorage.")} title="Lưu">
-          💾
+          <IconSaveLine />
         </button>
         <button type="button" className="equipment-btn equipment-btn--icon" onClick={() => window.alert("Chức năng Xuất Excel đang liên kết sau.")} title="Xuất Excel">
-          📊
+          <IconChartLine />
         </button>
         <button type="button" className="equipment-btn equipment-btn--icon" onClick={() => window.alert("Chức năng In PDF đang liên kết sau.")} title="In PDF">
-          🖨
+          <IconPrintLine />
         </button>
       </div>
 
@@ -443,7 +454,7 @@ export default function CCDCInventory({
         const isCollapsed = Boolean(collapsedBlocks[String(blockName || "").trim()]);
         return (
           <div className="equipment-card ccdc-block-card" key={blockName}>
-            <div className="equipment-card-head">
+            <div className="equipment-card-head ccdc-block-head">
               <div className="ccdc-block-title-wrap">
                 {editingBlockName === blockName ? (
                   <input
@@ -484,7 +495,7 @@ export default function CCDCInventory({
                       title="Lưu tên khối"
                       onClick={() => renameBlock(blockName, blockRows)}
                     >
-                      ✓
+                      <IconCheckLine />
                     </button>
                     <button
                       type="button"
@@ -492,7 +503,7 @@ export default function CCDCInventory({
                       title="Huỷ"
                       onClick={cancelRenameBlock}
                     >
-                      ↺
+                      <IconRotateLine />
                     </button>
                   </>
                 ) : (
@@ -502,7 +513,7 @@ export default function CCDCInventory({
                     title="Đổi tên khối"
                     onClick={() => startRenameBlock(blockName)}
                   >
-                    ✎
+                    <IconEditLine />
                   </button>
                 )}
                 <button
@@ -511,10 +522,10 @@ export default function CCDCInventory({
                   title="Xoá khối"
                   onClick={() => removeBlock(blockName, blockRows)}
                 >
-                  🗑
+                  <IconTrash2D />
                 </button>
                 <button type="button" className="equipment-btn equipment-btn--icon" onClick={() => addRow(blockName)} title="Thêm dòng">
-                  ＋
+                  <IconPlusLine />
                 </button>
               </div>
             </div>

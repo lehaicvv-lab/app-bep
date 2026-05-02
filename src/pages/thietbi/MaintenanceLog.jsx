@@ -1,3 +1,5 @@
+import { IconPlusLine } from "../../components/icons/AppLineIcons.jsx";
+
 const STATUS_AFTER_REPAIR = ["Hoạt động tốt", "Cần theo dõi", "Đang hỏng"];
 
 function emptyLog(equipmentId = "") {
@@ -55,7 +57,7 @@ export default function MaintenanceLog({
       <div className="equipment-expand-head">
         <strong>Lịch sử sửa chữa</strong>
         <button type="button" className="equipment-icon-btn" onClick={startAdd} title="Thêm sửa chữa">
-          ＋
+          <IconPlusLine />
         </button>
       </div>
 

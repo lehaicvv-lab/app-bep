@@ -1,4 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import {
+  IconChartLine,
+  IconEditLine,
+  IconPlusLine,
+  IconPrintLine,
+  IconSaveLine,
+} from "../../components/icons/AppLineIcons.jsx";
+import IconTrash2D from "../../components/icons/IconTrash2D.jsx";
 
 const STATUSES = [
   "Hoạt động tốt",
@@ -302,33 +310,47 @@ export default function EquipmentLarge({
         </label>
       </div>
 
-      <div className="equipment-actions">
-        <button type="button" className="equipment-btn" onClick={addBlockSection}>
-          + Thêm khối khu vực
+      <div className="equipment-actions equipment-actions--toolbar equipment-actions--report-like report-toolbar-saas-even">
+        <button type="button" className="report-toolbar-saas-primary equipment-toolbar-main" onClick={addBlockSection}>
+          <span className="report-toolbar-saas-primary-main">
+            <span className="report-toolbar-saas-primary-icon" aria-hidden>
+              <IconPlusLine />
+            </span>
+            <span className="report-toolbar-saas-primary-text">Thêm khối khu vực</span>
+          </span>
         </button>
         <button
           type="button"
-          className="equipment-btn equipment-btn--icon"
+          className="report-toolbar-saas-ghost equipment-toolbar-ghost"
           onClick={() => window.alert("Dữ liệu đã được lưu tự động theo localStorage.")}
           title="Lưu"
         >
-          💾
+          <span className="report-toolbar-saas-ghost-icon" aria-hidden>
+            <IconSaveLine />
+          </span>
+          <span>Lưu nháp</span>
         </button>
         <button
           type="button"
-          className="equipment-btn equipment-btn--icon"
+          className="report-toolbar-saas-ghost equipment-toolbar-ghost"
           onClick={() => window.alert("Chức năng Xuất Excel đang liên kết sau.")}
           title="Xuất Excel"
         >
-          📊
+          <span className="report-toolbar-saas-ghost-icon" aria-hidden>
+            <IconChartLine />
+          </span>
+          <span>Xuất Excel</span>
         </button>
         <button
           type="button"
-          className="equipment-btn equipment-btn--icon"
+          className="report-toolbar-saas-ghost equipment-toolbar-ghost"
           onClick={() => window.alert("Chức năng In PDF đang liên kết sau.")}
           title="In PDF"
         >
-          🖨
+          <span className="report-toolbar-saas-ghost-icon" aria-hidden>
+            <IconPrintLine />
+          </span>
+          <span>In PDF</span>
         </button>
       </div>
 
@@ -339,7 +361,7 @@ export default function EquipmentLarge({
         const isCollapsed = Boolean(collapsedBlocks[String(blockName || "").trim()]);
         return (
           <div className="equipment-card" key={blockName}>
-            <div className="equipment-card-head">
+            <div className="equipment-card-head ccdc-block-head">
               <div className="ccdc-block-title-wrap">
                 {editingBlockName === blockName ? (
                   <input
@@ -366,14 +388,14 @@ export default function EquipmentLarge({
                 </button>
               </div>
               <div className="ccdc-block-actions">
-                <button type="button" className="equipment-btn equipment-btn--icon" title="Đổi tên khối" onClick={() => startRenameBlock(blockName)}>
-                  ✎
+                <button type="button" className="equipment-btn equipment-btn--icon equipment-flat-btn equipment-flat-btn--edit" title="Đổi tên khối" onClick={() => startRenameBlock(blockName)}>
+                  <IconEditLine />
                 </button>
-                <button type="button" className="equipment-btn equipment-btn--icon danger" title="Xoá khối" onClick={() => removeBlock(blockName, blockRows)}>
-                  🗑
+                <button type="button" className="equipment-btn equipment-btn--icon equipment-flat-btn equipment-flat-btn--danger" title="Xoá khối" onClick={() => removeBlock(blockName, blockRows)}>
+                  <IconTrash2D />
                 </button>
-                <button type="button" className="equipment-btn equipment-btn--icon" onClick={() => addEquipmentInline(blockName)} title="Thêm dòng">
-                  ＋
+                <button type="button" className="equipment-btn equipment-btn--icon equipment-flat-btn equipment-flat-btn--add" onClick={() => addEquipmentInline(blockName)} title="Thêm dòng">
+                  <IconPlusLine />
                 </button>
               </div>
             </div>
@@ -482,14 +504,14 @@ export default function EquipmentLarge({
                                   )}
                                   <button
                                     type="button"
-                                    className="equipment-btn equipment-btn--icon"
+                                    className="equipment-btn equipment-btn--icon equipment-flat-btn equipment-flat-btn--add"
                                     title="Thêm xử lý"
                                     onClick={() => {
                                       setActiveEquipmentId(row.id);
                                       setStartCreateForActive(true);
                                     }}
                                   >
-                                    ＋
+                                    <IconPlusLine />
                                   </button>
                                 </div>
                               </td>
@@ -498,7 +520,7 @@ export default function EquipmentLarge({
                                   {getAlertMeta(effectiveStatus).label}
                                 </span>
                               </td>
-                              <td><button className="equipment-btn equipment-btn--icon danger" title="Xoá" onClick={() => removeRow(row.id)}>🗑</button></td>
+                              <td><button className="equipment-btn equipment-btn--icon equipment-flat-btn equipment-flat-btn--danger" title="Xoá" onClick={() => removeRow(row.id)}><IconTrash2D /></button></td>
                             </tr>
                           </Fragment>
                         );
@@ -764,7 +786,7 @@ function LogEditor({ rows, startCreate, navGroup, defaultAfterStatus, onCreateMo
                         "—"
                       )}
                     </td>
-                    <td><button className="equipment-btn equipment-btn--icon danger" title="Xoá" onClick={() => onDelete(x.id)}>🗑</button></td>
+                    <td><button className="equipment-btn equipment-btn--icon danger" title="Xoá" onClick={() => onDelete(x.id)}><IconTrash2D /></button></td>
                   </tr>
                   {hasExtra && expandedDetails[x.id] && (
                     <tr>

@@ -2,6 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import "./styles/ops-standard.css";
 
+import {
+  authenticateCredentials,
+  clearAuthSession,
+  getCurrentUser,
+  isAuthSessionValid,
+  markSessionForUser,
+  notifyAuthChanged,
+} from "./utils/accountAuth.js";
 import Dashboard from "./pages/Dashboard";
 import BaoCaoVanHanhBepForm from "./pages/BaoCaoVanHanhBepForm";
 import AnToan from "./pages/AnToan";
@@ -23,19 +31,6 @@ import {
   IconSidebarUsers,
   IconSidebarWrench,
 } from "./components/SidebarIcons.jsx";
-
-const ACCOUNT_STORAGE_KEY = "app_bep_accounts_v2";
-const CURRENT_USER_KEY = "app_bep_current_user_v1";
-
-function readJson(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
 
 function fullAccessPermissions() {
   return {
@@ -62,18 +57,12 @@ function fullAccessPermissions() {
 }
 
 function getPermissionContext() {
-  const accounts = readJson(ACCOUNT_STORAGE_KEY, []);
-  if (!Array.isArray(accounts) || accounts.length === 0) return fullAccessPermissions();
-  const preferredUser = localStorage.getItem(CURRENT_USER_KEY) || "admin";
-  const fallback = accounts.find((x) => x.active && x.username === "admin");
-  const current = accounts.find((x) => x.active && x.username === preferredUser) || fallback;
+  const current = getCurrentUser();
   if (!current?.permissions) return fullAccessPermissions();
-
+  if (current.role === "admin") return fullAccessPermissions();
   const pages = { ...fullAccessPermissions().pages };
-  const legacyPageMap = { report: "baocaongay", safety: "antoan", hr: "nhansu", account: "taikhoan" };
   Object.entries(current.permissions.pages || {}).forEach(([key, value]) => {
-    const mapped = legacyPageMap[key] || key;
-    if (mapped in pages) pages[mapped] = Boolean(value);
+    if (key in pages) pages[key] = Boolean(value);
   });
   const reportTabs = { ...fullAccessPermissions().reportTabs };
   Object.entries(current.permissions.reportTabs || {}).forEach(([key, value]) => {
@@ -83,6 +72,8 @@ function getPermissionContext() {
 }
 
 function App() {
+  const [authTick, setAuthTick] = useState(0);
+  const [loginError, setLoginError] = useState("");
   const [page, setPage] = useState("dashboard");
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -105,10 +96,20 @@ function App() {
     if (assetTab === "catalog") setAssetTab("overview");
   }, [assetTab]);
 
-  const permissionCtx = useMemo(
-    () => getPermissionContext(),
-    [page, reportTab, fleetTab, assetTab, safetyTab, nhansuTab, activeFormGroup, activeFormType]
-  );
+  useEffect(() => {
+    const bump = () => setAuthTick((t) => t + 1);
+    window.addEventListener("app-bep-auth-changed", bump);
+    return () => window.removeEventListener("app-bep-auth-changed", bump);
+  }, []);
+
+  const permissionCtx = useMemo(() => {
+    void authTick;
+    return getPermissionContext();
+  }, [authTick]);
+  const currentUser = useMemo(() => {
+    void authTick;
+    return getCurrentUser();
+  }, [authTick]);
   const canAccessPage = (pageKey) => Boolean(permissionCtx.pages?.[pageKey]);
   const canAccessReportTab = (tabKey) => Boolean(permissionCtx.reportTabs?.[tabKey]);
 
@@ -188,6 +189,25 @@ function App() {
 
   const isSettingsActive = settingsMenu.some((item) => item.key === page);
 
+  const resetManagementReportStorage = () => {
+    try {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (k.startsWith("sky-catering-ops-report:management:") || k.includes("::management")) {
+          keys.push(k);
+        }
+      }
+      keys.forEach((k) => localStorage.removeItem(k));
+      if (keys.length) {
+        console.log("[REPORT] reset management keys:", keys);
+      }
+    } catch (error) {
+      console.error("[REPORT] reset management storage failed:", error);
+    }
+  };
+
   const handleSelectPage = (nextPage) => {
     if (!canAccessPage(nextPage)) return;
     setPage(nextPage);
@@ -214,8 +234,8 @@ function App() {
 
   const handleSelectReportTab = (tabKey) => {
     if (!canAccessPage("baocaongay") || !canAccessReportTab(tabKey)) return;
-    setReportTab(tabKey);
     setPage("baocaongay");
+    setReportTab(tabKey);
     setReportMenuOpen(true);
     setSettingsOpen(false);
     setNhansuMenuOpen(false);
@@ -334,6 +354,51 @@ function App() {
     };
   }, []);
 
+  const sessionOk = isAuthSessionValid();
+
+  useEffect(() => {
+    if (!sessionOk) return;
+    if (page === "taikhoan" && currentUser?.role !== "admin") {
+      setPage("dashboard");
+      return;
+    }
+    if (!canAccessPage(page)) {
+      setPage("dashboard");
+      return;
+    }
+    if (page === "baocaongay" && !canAccessReportTab(reportTab)) {
+      const fallbackTab = reportSubmenu.find((item) => canAccessReportTab(item.key))?.key || "summary";
+      setReportTab(fallbackTab);
+    }
+  }, [sessionOk, page, reportTab, currentUser, permissionCtx]);
+
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const username = String(fd.get("username") || "").trim();
+    const password = String(fd.get("password") || "");
+    if (!username || !password) {
+      setLoginError("Nhập đủ tài khoản và mật khẩu.");
+      return;
+    }
+    const res = await authenticateCredentials(username, password);
+    if (!res.ok) {
+      setLoginError(res.message);
+      return;
+    }
+    markSessionForUser(res.user);
+    setLoginError("");
+    notifyAuthChanged();
+  };
+
+  const handleLogoutClick = () => {
+    clearAuthSession();
+    setLoginError("");
+    notifyAuthChanged();
+    setPage("dashboard");
+    setSettingsOpen(false);
+  };
+
   const renderPage = () => {
     if (!canAccessPage(page)) {
       return <Dashboard />;
@@ -342,7 +407,23 @@ function App() {
       case "dashboard":
         return <Dashboard />;
       case "baocaongay":
-        return <BaoCaoVanHanhBepForm initialTab={reportTab} onTabChange={setReportTab} />;
+        console.log("TAB:", reportTab);
+        switch (reportTab) {
+          case "summary":
+            return <BaoCaoVanHanhBepForm initialTab="summary" onTabChange={setReportTab} />;
+          case "management":
+            return <BaoCaoVanHanhBepForm initialTab="management" onTabChange={setReportTab} />;
+          case "service":
+            return <BaoCaoVanHanhBepForm initialTab="service" onTabChange={setReportTab} />;
+          case "warehouse":
+            return <BaoCaoVanHanhBepForm initialTab="warehouse" onTabChange={setReportTab} />;
+          case "accounting":
+            return <BaoCaoVanHanhBepForm initialTab="accounting" onTabChange={setReportTab} />;
+          case "bep":
+            return <BaoCaoVanHanhBepForm initialTab="bep" onTabChange={setReportTab} />;
+          default:
+            return <BaoCaoVanHanhBepForm initialTab="summary" onTabChange={setReportTab} />;
+        }
       case "antoan":
         return <AnToan initialTab={safetyTab} onTabChange={setSafetyTab} />;
       case "danhmuc":
@@ -376,6 +457,36 @@ function App() {
     }
   };
 
+  if (!sessionOk) {
+    return (
+      <div className="app-login-screen">
+        <form className="app-login-card" onSubmit={handleLoginSubmit}>
+          <div className="app-login-brand">Sky Catering Operations</div>
+          <p className="app-login-lead">Đăng nhập để tiếp tục.</p>
+          <label className="app-login-label">
+            Tài khoản
+            <input className="app-login-input" name="username" autoComplete="username" defaultValue="admin" />
+          </label>
+          <label className="app-login-label">
+            Mật khẩu
+            <input
+              className="app-login-input"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              placeholder="••••••"
+            />
+          </label>
+          {loginError ? <div className="app-login-error">{loginError}</div> : null}
+          <button type="submit" className="app-login-submit">
+            Đăng nhập
+          </button>
+          <p className="app-login-hint">Tài khoản mẫu: admin / 123456.</p>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <aside className={`left-sidebar no-print ${isCollapsed ? "collapsed" : ""}`}>
@@ -393,6 +504,9 @@ function App() {
           {!isCollapsed ? (
             <div className="sidebar-subtitle">Hệ thống quản lý vận hành suất ăn công nghiệp</div>
           ) : null}
+          <button type="button" className="sidebar-logout-btn no-print" onClick={handleLogoutClick} title="Đăng xuất">
+            {isCollapsed ? "⎋" : `Đăng xuất (${currentUser?.username || "—"})`}
+          </button>
         </div>
 
         <nav className="sidebar-menu">
@@ -409,7 +523,8 @@ function App() {
                     }`}
                     onClick={() => {
                       setPage("baocaongay");
-                      setReportMenuOpen((prev) => !prev);
+                      setReportTab("summary");
+                      setReportMenuOpen((prev) => (page === "baocaongay" ? !prev : true));
                       setSettingsOpen(false);
                     }}
                     aria-expanded={reportMenuOpen}

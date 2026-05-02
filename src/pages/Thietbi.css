@@ -115,6 +115,71 @@
   flex-wrap: wrap;
 }
 
+.equipment-actions--toolbar {
+  align-items: center;
+  gap: 8px;
+}
+
+.equipment-actions--report-like {
+  margin-top: 2px;
+}
+
+.equipment-actions--report-like.report-toolbar-saas-even {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+  gap: 10px;
+}
+
+.equipment-actions--report-like.report-toolbar-saas-even .equipment-toolbar-main,
+.equipment-actions--report-like.report-toolbar-saas-even .equipment-toolbar-ghost {
+  width: auto !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+.equipment-actions--report-like .equipment-toolbar-main {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+.equipment-actions--report-like .equipment-toolbar-main,
+.equipment-actions--report-like .equipment-toolbar-ghost {
+  min-height: 42px;
+}
+
+.equipment-actions--report-like .equipment-toolbar-main {
+  justify-content: center;
+}
+
+.equipment-actions--report-like .equipment-toolbar-ghost {
+  justify-content: center;
+  gap: 8px;
+}
+
+.equipment-btn--with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.equipment-btn--with-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.equipment-actions--toolbar .equipment-btn--icon {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .equipment-btn {
   border: 1px solid #a2ccb6;
   background: #f6fcf8;
@@ -786,6 +851,88 @@ form.equipment-inline-form[data-active="true"] {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.ccdc-block-head {
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.ccdc-block-head .ccdc-block-actions {
+  margin-left: auto;
+  gap: 10px;
+}
+
+.ccdc-block-head .equipment-btn--icon {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ccdc-block-head .equipment-btn--icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ccdc-block-head .equipment-btn--icon.danger {
+  border-color: #f3c0c0;
+  background: #fff7f7;
+}
+
+/* Thiết bị lớn: icon hành động phẳng 2D, không viền */
+.equipment-flat-btn.equipment-btn--icon {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.equipment-flat-btn.equipment-btn--icon:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.equipment-flat-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.equipment-flat-btn--edit {
+  color: #0f766e;
+}
+
+.equipment-flat-btn--edit:hover {
+  background: rgba(15, 118, 110, 0.12) !important;
+}
+
+.equipment-flat-btn--add {
+  color: #166534;
+}
+
+.equipment-flat-btn--add:hover {
+  background: rgba(22, 101, 52, 0.12) !important;
+}
+
+.equipment-flat-btn--danger {
+  color: #b91c1c;
+}
+
+.equipment-flat-btn--danger:hover {
+  background: rgba(185, 28, 28, 0.12) !important;
 }
 
 .ccdc-block-title-wrap {

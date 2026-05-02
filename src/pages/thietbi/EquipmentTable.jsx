@@ -1,4 +1,6 @@
 import MaintenanceLog from "./MaintenanceLog";
+import { IconEditLine } from "../../components/icons/AppLineIcons.jsx";
+import IconTrash2D from "../../components/icons/IconTrash2D.jsx";
 
 function statusClass(status) {
   if (status === "Đang hỏng") return "danger";
@@ -57,8 +59,8 @@ export default function EquipmentTable({
                       <button className="equipment-icon-btn" onClick={() => setExpandedId(isOpen ? "" : row.id)} title="Số lần sửa">
                         {summary.count}
                       </button>
-                      <button className="equipment-icon-btn" onClick={() => onEdit(row)} title="Sửa">✎</button>
-                      <button className="equipment-icon-btn" onClick={() => onDelete(row.id)} title="Xóa">🗑</button>
+                      <button className="equipment-icon-btn" onClick={() => onEdit(row)} title="Sửa"><IconEditLine /></button>
+                      <button className="equipment-icon-btn" onClick={() => onDelete(row.id)} title="Xóa"><IconTrash2D /></button>
                     </td>
                   </tr>
                   {isOpen ? (

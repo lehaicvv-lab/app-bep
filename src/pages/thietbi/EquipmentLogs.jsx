@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { IconCheckLine, IconEditLine } from "../../components/icons/AppLineIcons.jsx";
+import IconTrash2D from "../../components/icons/IconTrash2D.jsx";
 
 function money(v) {
   return Number(v || 0).toLocaleString("vi-VN");
@@ -147,8 +149,12 @@ export default function EquipmentLogs({ logs, equipmentById, regions, locations,
                     <td>{editing ? <select value={log.afterStatus || ""} onChange={(e) => patchLog(log.id, "afterStatus", e.target.value)}>{STATUSES.map((x) => <option key={x} value={x}>{x}</option>)}</select> : log.afterStatus || "—"}</td>
                     <td>{editing ? <input value={log.note || ""} onChange={(e) => patchLog(log.id, "note", e.target.value)} /> : log.note || "—"}</td>
                     <td>
-                      <button className="equipment-btn equipment-btn--icon" title={editing ? "Hoàn tất" : "Sửa"} onClick={() => setEditingId(editing ? "" : log.id)}>{editing ? "✓" : "✎"}</button>
-                      <button className="equipment-btn equipment-btn--icon danger" title="Xoá" onClick={() => softDelete(log.id)}>🗑</button>
+                      <button className="equipment-btn equipment-btn--icon" title={editing ? "Hoàn tất" : "Sửa"} onClick={() => setEditingId(editing ? "" : log.id)}>
+                        {editing ? <IconCheckLine /> : <IconEditLine />}
+                      </button>
+                      <button className="equipment-btn equipment-btn--icon danger" title="Xoá" onClick={() => softDelete(log.id)}>
+                        <IconTrash2D />
+                      </button>
                     </td>
                   </tr>
                 );
