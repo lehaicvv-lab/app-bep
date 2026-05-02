@@ -9,6 +9,7 @@ import {
   isAuthSessionValid,
   markSessionForUser,
   notifyAuthChanged,
+  seedAdminIfNoAccounts,
 } from "./utils/accountAuth.js";
 import Dashboard from "./pages/Dashboard";
 import BaoCaoVanHanhBepForm from "./pages/BaoCaoVanHanhBepForm";
@@ -97,6 +98,7 @@ function App() {
   }, [assetTab]);
 
   useEffect(() => {
+    seedAdminIfNoAccounts();
     const bump = () => setAuthTick((t) => t + 1);
     window.addEventListener("app-bep-auth-changed", bump);
     return () => window.removeEventListener("app-bep-auth-changed", bump);
@@ -377,17 +379,29 @@ function App() {
     const fd = new FormData(e.currentTarget);
     const username = String(fd.get("username") || "").trim();
     const password = String(fd.get("password") || "");
+    console.log("[login] input:", {
+      username,
+      passwordLength: password.length,
+    });
     if (!username || !password) {
       setLoginError("Nhập đủ tài khoản và mật khẩu.");
       return;
     }
     const res = await authenticateCredentials(username, password);
+    console.log("[login] auth result:", {
+      ok: res.ok,
+      message: res.message || "",
+      username: res.user?.username || "",
+      role: res.user?.role || "",
+    });
     if (!res.ok) {
       setLoginError(res.message);
       return;
     }
     markSessionForUser(res.user);
     setLoginError("");
+    setPage("dashboard");
+    window.history.replaceState({}, "", "/dashboard");
     notifyAuthChanged();
   };
 

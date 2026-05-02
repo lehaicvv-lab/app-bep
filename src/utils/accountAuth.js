@@ -195,6 +195,7 @@ export function getCurrentUserPermissions() {
 
 export async function authenticateCredentials(username, password) {
   if (!hasSupabaseEnv || !supabase) {
+    console.log("[auth] Supabase ENV missing -> using local fallback auth");
     const localRows = ensureLocalFallbackAccounts();
     const matched = localRows.find(
       (row) =>
