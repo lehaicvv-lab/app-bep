@@ -1,7 +1,8 @@
-import { supabase } from "../services/supabase.js";
+import { hasSupabaseEnv, supabase } from "../services/supabase.js";
 
 export const ACCOUNT_STORAGE_KEY = "app_bep_accounts_v2";
 export const CURRENT_USER_KEY = "currentUser";
+const LOCAL_ADMIN_ID = "local-admin";
 
 const FULL_ACCESS = {
   pages: {
@@ -75,6 +76,42 @@ function emptyPermissions() {
     base.actions[key] = false;
   });
   return base;
+}
+
+function readLocalAccounts() {
+  try {
+    const raw = localStorage.getItem(ACCOUNT_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function buildLocalAdminUser() {
+  return {
+    id: LOCAL_ADMIN_ID,
+    username: "admin",
+    password: "123456",
+    full_name: "Administrator",
+    role: "admin",
+    permissions: clonePermissions(FULL_ACCESS),
+    active: true,
+    created_at: new Date().toISOString(),
+  };
+}
+
+function ensureLocalFallbackAccounts() {
+  const rows = readLocalAccounts();
+  if (rows.length > 0) return rows;
+  const seeded = [buildLocalAdminUser()];
+  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(seeded));
+  return seeded;
+}
+
+function saveLocalAccounts(rows) {
+  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(rows));
 }
 
 function readStoredCurrentUser() {
@@ -157,6 +194,18 @@ export function getCurrentUserPermissions() {
 }
 
 export async function authenticateCredentials(username, password) {
+  if (!hasSupabaseEnv || !supabase) {
+    const localRows = ensureLocalFallbackAccounts();
+    const matched = localRows.find(
+      (row) =>
+        row.active !== false &&
+        String(row.username || "").trim().toLowerCase() === String(username || "").trim().toLowerCase() &&
+        String(row.password || "") === String(password || "")
+    );
+    if (!matched) return { ok: false, message: "Sai tài khoản hoặc mật khẩu" };
+    return { ok: true, user: mapSupabaseUser(matched) };
+  }
+
   const { data, error } = await supabase
     .from("users_profile")
     .select("*")
@@ -191,6 +240,9 @@ export function notifyAuthChanged() {
 }
 
 export async function fetchUsersProfile() {
+  if (!hasSupabaseEnv || !supabase) {
+    return ensureLocalFallbackAccounts().map(mapSupabaseUser);
+  }
   const { data, error } = await supabase
     .from("users_profile")
     .select("*")
@@ -200,12 +252,39 @@ export async function fetchUsersProfile() {
 }
 
 export async function createUserProfile(payload) {
+  if (!hasSupabaseEnv || !supabase) {
+    const rows = ensureLocalFallbackAccounts();
+    const next = {
+      id: crypto.randomUUID(),
+      username: String(payload.username || "").trim(),
+      password: String(payload.password || ""),
+      full_name: String(payload.full_name || "").trim(),
+      role: String(payload.role || "staff"),
+      permissions: payload.permissions || emptyPermissions(),
+      active: payload.active !== false,
+      created_at: new Date().toISOString(),
+    };
+    saveLocalAccounts([next, ...rows]);
+    return mapSupabaseUser(next);
+  }
   const { data, error } = await supabase.from("users_profile").insert(payload).select("*").single();
   if (error) throw error;
   return mapSupabaseUser(data);
 }
 
 export async function updateUserProfile(id, payload) {
+  if (!hasSupabaseEnv || !supabase) {
+    const rows = ensureLocalFallbackAccounts();
+    let updated = null;
+    const nextRows = rows.map((row) => {
+      if (String(row.id) !== String(id)) return row;
+      updated = { ...row, ...payload };
+      return updated;
+    });
+    saveLocalAccounts(nextRows);
+    if (!updated) throw new Error("Không tìm thấy tài khoản cần cập nhật.");
+    return mapSupabaseUser(updated);
+  }
   const { data, error } = await supabase
     .from("users_profile")
     .update(payload)
@@ -217,6 +296,11 @@ export async function updateUserProfile(id, payload) {
 }
 
 export async function deleteUserProfile(id) {
+  if (!hasSupabaseEnv || !supabase) {
+    const rows = ensureLocalFallbackAccounts();
+    saveLocalAccounts(rows.filter((row) => String(row.id) !== String(id)));
+    return;
+  }
   const { error } = await supabase.from("users_profile").delete().eq("id", id);
   if (error) throw error;
 }
@@ -226,7 +310,9 @@ export function permissionsToSupabasePayload(permissions) {
 }
 
 export function seedAdminIfNoAccounts() {
-  // Không còn seed localStorage; dữ liệu tài khoản đã chuyển sang Supabase.
+  if (!hasSupabaseEnv) {
+    ensureLocalFallbackAccounts();
+  }
 }
 
 export function hashPassword(value) {
