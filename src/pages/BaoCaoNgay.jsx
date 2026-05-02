@@ -3,6 +3,29 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { buildSiteSelectOptions, getShiftNames } from "../systemCatalog/masterData.js";
 import { useMasterCatalogSnapshot } from "../systemCatalog/useMasterCatalogSnapshot.js";
 
+class ReportModuleErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error) {
+    console.error("MANAGEMENT CRASH:", error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 16, color: "#b91c1c", fontWeight: 600 }}>
+          Module Báo cáo đang gặp lỗi hiển thị. Vui lòng tải lại hoặc kiểm tra lại dữ liệu Báo cáo vừa nhập.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /**
  * BaoCaoVanHanhBepForm.jsx
  * - 1 file JSX độc lập
@@ -88,6 +111,49 @@ function ToolbarIconClock() {
     >
       <circle cx="12" cy="12" r="10" />
       <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function RowDeleteIcon2D() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+function PlusIcon2D() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
     </svg>
   );
 }
@@ -490,6 +556,44 @@ const SERVICE_SECTION_CONFIG = [
 
 const CHAY_HANG_REASON_OPTIONS = ["Thiếu suất", "Khách tăng", "Sai dự báo", "Hỗ trợ line"];
 
+function emptyIssueDetailRow() {
+  return {
+    issueTitle: "",
+    cause: "",
+    actionTaken: "",
+    responsibility: "",
+    issueDeadline: "",
+    issueResult: "",
+  };
+}
+
+function normalizeIssueDetailRow(row) {
+  return {
+    issueTitle: typeof row?.issueTitle === "string" ? row.issueTitle : "",
+    cause: typeof row?.cause === "string" ? row.cause : "",
+    actionTaken: typeof row?.actionTaken === "string" ? row.actionTaken : "",
+    responsibility: typeof row?.responsibility === "string" ? row.responsibility : "",
+    issueDeadline: typeof row?.issueDeadline === "string" ? row.issueDeadline : "",
+    issueResult: typeof row?.issueResult === "string" ? row.issueResult : "",
+  };
+}
+
+function issueDetailRowsFromSection(section) {
+  if (Array.isArray(section?.issueItems) && section.issueItems.length) {
+    return section.issueItems.map(normalizeIssueDetailRow);
+  }
+  return [
+    normalizeIssueDetailRow({
+      issueTitle: section?.issueTitle,
+      cause: section?.cause,
+      actionTaken: section?.actionTaken,
+      responsibility: section?.responsibility,
+      issueDeadline: section?.issueDeadline,
+      issueResult: section?.issueResult,
+    }),
+  ];
+}
+
 function defaultChayHangRows() {
   return [{ dish: "", qty: "", reason: "", time: "", owner: "", result: "" }];
 }
@@ -824,7 +928,7 @@ function syncProcurementSection(section, sectionKey) {
     action: typeof r?.action === "string" ? r.action.trim() : "",
     result: typeof r?.result === "string" ? r.result.trim() : "",
   }));
-  const hasIssue = rows.some((r) => pmRowHasContent(r));
+  const hasIssue = Boolean(s.hasIssue);
   const total = rows.reduce((sum, r) => sum + pmRowAmount(r), 0);
   let impactLevel = s.impactLevel || "";
   if (hasIssue && total > 1000000) impactLevel = "serious";
@@ -963,8 +1067,7 @@ function syncWarehouseAccountingSection(section, sectionKey, reportDate) {
 
   const isHsd = WH_HSD_KEYS.has(sectionKey);
   const hsdAuto = isHsd && warehouseHsdAutoIssueFromRows({ ...s, issueRows: rows }, reportDate);
-  const manualIssue = rows.some((r) => warehouseRowHasContent(r));
-  const hasIssue = hsdAuto || manualIssue;
+  const hasIssue = Boolean(s.hasIssue);
 
   let worst = "";
   if (isHsd) {
@@ -1153,12 +1256,138 @@ const PROCUREMENT_SECTION_CONFIG = [
   },
 ];
 
-const storageKey = (header) =>
-  `sky-catering-ops-report:${header.reportDate || ""}:${header.site || ""}:${header.kitchen || ""}:${header.shift || ""}`;
+const storageKey = (header, tabKey = "summary") =>
+  `sky-catering-ops-report:${tabKey}:${header.reportDate || ""}:${header.site || ""}:${header.shift || ""}`;
+
+const reportStorageKey = (header, tabKey = "summary") =>
+  `report_${normalizeReportTabKey(tabKey)}_${header.site || ""}_${header.reportDate || ""}_${header.shift || ""}`;
+
+const storageKeyLegacy = (header, tabKey = "summary") =>
+  `sky-catering-ops-report:${header.reportDate || ""}:${header.site || ""}:${header.kitchen || ""}:${header.shift || ""}::${tabKey}`;
 
 const STATUS_VALUES = STATUS_OPTIONS.map((item) => item.value);
 const IMPACT_VALUES = IMPACT_OPTIONS.map((item) => item.value);
 const YES_NO_VALUES = ["yes", "no"];
+const REPORT_TAB_KEYS = {
+  summary: "summary",
+  management: "management",
+  service: "service",
+  accounting: "accounting",
+  warehouse: "warehouse",
+  bep: "bep",
+};
+const REPORT_FORM_TABS = ["management", "service", "accounting", "warehouse", "bep"];
+const REPORT_TAB_META = {
+  summary: { label: "Tổng hợp ngày", kitchen: "" },
+  management: { label: "Quản lý", kitchen: "Quản lý" },
+  service: { label: "Giám sát dịch vụ", kitchen: "Giám sát dịch vụ" },
+  accounting: { label: "Kế toán kho", kitchen: "Kế toán kho" },
+  warehouse: { label: "Kế toán sản xuất", kitchen: "Kế toán sản xuất" },
+  bep: { label: "Bếp", kitchen: "Bếp" },
+};
+
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function summarizeValidationErrors(nextErrors, activeSectionConfig) {
+  const labels = [];
+  const pushLabel = (label) => {
+    if (!label || labels.includes(label)) return;
+    labels.push(label);
+  };
+
+  if (nextErrors?.header?.reportDate) pushLabel("Ngày báo cáo");
+  if (nextErrors?.header?.site) pushLabel("Khu vực / Bếp-site");
+  if (nextErrors?.header?.kitchen) pushLabel("Bộ phận");
+  if (nextErrors?.header?.manager) pushLabel("Họ và tên");
+  if (nextErrors?.header?.plannedMeals) pushLabel("Kế hoạch suất");
+
+  const itemTitleMap = new Map();
+  activeSectionConfig.forEach((group) => {
+    group.items.forEach((item) => {
+      itemTitleMap.set(item.key, item.title);
+    });
+  });
+
+  Object.keys(nextErrors || {}).forEach((key) => {
+    if (key === "header") return;
+    if (!nextErrors[key] || !Object.keys(nextErrors[key]).length) return;
+    pushLabel(itemTitleMap.get(key) || key);
+  });
+
+  return labels;
+}
+
+function normalizeReportTabKey(tabKey) {
+  return REPORT_TAB_KEYS[tabKey] || "summary";
+}
+
+function isReportFormTab(tabKey) {
+  return REPORT_FORM_TABS.includes(normalizeReportTabKey(tabKey));
+}
+
+function buildReportStorageKeys(header, tabKey = "summary") {
+  const canonicalTab = normalizeReportTabKey(tabKey);
+  const tabVariants = canonicalTab === "management" ? ["management", "summary"] : [canonicalTab];
+  return Array.from(
+    new Set(
+      tabVariants.flatMap((variant) => [
+        reportStorageKey(header, variant),
+        storageKey(header, variant),
+        storageKeyLegacy(header, variant),
+      ])
+    )
+  );
+}
+
+function resetReportStorageKeys(keys) {
+  keys.forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Bỏ qua lỗi remove để không chặn luồng fallback của module Báo cáo.
+    }
+  });
+}
+
+function readStoredReportSnapshot(header, tabKey = "summary") {
+  const candidateKeys = buildReportStorageKeys(header, tabKey);
+  const brokenKeys = [];
+
+  for (const key of candidateKeys) {
+    const raw = localStorage.getItem(key);
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!isRecord(parsed)) {
+        throw new Error("Invalid report payload");
+      }
+      return { parsed, key, brokenKeys };
+    } catch (error) {
+      console.error("Dữ liệu Báo cáo bị lỗi, đang reset key:", key, error);
+      brokenKeys.push(key);
+    }
+  }
+
+  if (brokenKeys.length) {
+    resetReportStorageKeys(brokenKeys);
+  }
+
+  return { parsed: null, key: null, brokenKeys };
+}
+
+function defaultKitchenByTab(tabKey) {
+  return REPORT_TAB_META[normalizeReportTabKey(tabKey)]?.kitchen || "Bếp";
+}
+
+function buildHeaderForTab(tabKey, overrides = {}) {
+  return {
+    ...DEFAULT_HEADER,
+    ...overrides,
+    kitchen: overrides.kitchen || defaultKitchenByTab(tabKey),
+  };
+}
 
 function normalizeSection(section, sectionKey, reportDate = "") {
   const next = { ...section };
@@ -1257,8 +1486,12 @@ function normalizeSection(section, sectionKey, reportDate = "") {
 }
 
 function normalizeFormSnapshot(currentForm) {
+  const safeForm = isRecord(currentForm) ? currentForm : {};
   const defaults = createDefaultForm();
-  const mergedSections = { ...defaults.sections, ...(currentForm.sections || {}) };
+  const mergedSections = {
+    ...defaults.sections,
+    ...(isRecord(safeForm.sections) ? safeForm.sections : {}),
+  };
   Object.keys(defaults.sections).forEach((sectionKey) => {
     mergedSections[sectionKey] = { ...defaults.sections[sectionKey], ...(mergedSections[sectionKey] || {}) };
   });
@@ -1270,11 +1503,11 @@ function normalizeFormSnapshot(currentForm) {
   }
 
   const next = {
-    ...currentForm,
-    header: { ...currentForm.header },
+    ...safeForm,
+    header: { ...(isRecord(safeForm.header) ? safeForm.header : {}) },
     sections: mergedSections,
-    metrics: { ...currentForm.metrics },
-    managerSummary: { ...currentForm.managerSummary },
+    metrics: { ...(isRecord(safeForm.metrics) ? safeForm.metrics : {}) },
+    managerSummary: { ...(isRecord(safeForm.managerSummary) ? safeForm.managerSummary : {}) },
   };
 
   Object.keys(next.header).forEach((key) => {
@@ -1311,6 +1544,142 @@ function normalizeFormSnapshot(currentForm) {
   }
 
   return next;
+}
+
+function getOpsScoreForTab(tabKey, form) {
+  const currentTabKey = normalizeReportTabKey(tabKey);
+  if (currentTabKey === "bep") return computeKitchenOperationalScore(form.sections, form.header);
+  if (currentTabKey === "accounting") return computeWarehouseOperationalScore(form.sections, form.header);
+  if (currentTabKey === "warehouse") return computeProcurementOperationalScore(form.sections, form.header);
+  return computeOperationalDayScore(form.sections, form.header);
+}
+
+function getIssueCountForTab(tabKey, sections = {}) {
+  const currentTabKey = normalizeReportTabKey(tabKey);
+  if (currentTabKey === "accounting") {
+    return Object.entries(sections).filter(([key, section]) => key.startsWith("wh") && section?.hasIssue).length;
+  }
+  if (currentTabKey === "warehouse") {
+    return Object.entries(sections).filter(([key, section]) => key.startsWith("pm") && section?.hasIssue).length;
+  }
+  return Object.values(sections).filter((section) => section?.hasIssue).length;
+}
+
+function getDepartmentDisplayName(tabKey, header = {}) {
+  const normalized = normalizeReportTabKey(tabKey);
+  if (normalized === "summary") return REPORT_TAB_META.summary.label;
+  return String(header?.kitchen || "").trim() || REPORT_TAB_META[normalized]?.label || normalized;
+}
+
+function parseReportStorageDescriptor(key) {
+  const nextKeyMatch = String(key).match(/^report_([^_]+)_(.+)_(\d{4}-\d{2}-\d{2})_(.+)$/);
+  if (nextKeyMatch) {
+    return {
+      tabKey: normalizeReportTabKey(nextKeyMatch[1]),
+      site: nextKeyMatch[2] || "",
+      reportDate: nextKeyMatch[3] || "",
+      shift: nextKeyMatch[4] || "",
+      kitchen: "",
+      isLegacy: false,
+    };
+  }
+
+  if (!String(key || "").startsWith("sky-catering-ops-report:")) return null;
+
+  const legacyMatch = String(key).match(
+    /^sky-catering-ops-report:(\d{4}-\d{2}-\d{2}):(.*?):(.*?):(.*?)::([a-z]+)$/
+  );
+  if (legacyMatch) {
+    return {
+      reportDate: legacyMatch[1],
+      site: legacyMatch[2],
+      kitchen: legacyMatch[3],
+      shift: legacyMatch[4],
+      tabKey: normalizeReportTabKey(legacyMatch[5] === "summary" ? "management" : legacyMatch[5]),
+      isLegacy: true,
+    };
+  }
+
+  const parts = String(key).split(":");
+  if (parts.length < 5) return null;
+  return {
+    tabKey: normalizeReportTabKey(parts[1] === "summary" ? "management" : parts[1]),
+    reportDate: parts[2] || "",
+    site: parts[3] || "",
+    shift: parts[4] || "",
+    kitchen: "",
+    isLegacy: false,
+  };
+}
+
+function scanStoredReportEntries() {
+  const rows = [];
+  const seen = new Map();
+  const brokenKeys = [];
+
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    const descriptor = parseReportStorageDescriptor(key);
+    if (!descriptor || !isReportFormTab(descriptor.tabKey)) continue;
+
+    const raw = localStorage.getItem(key);
+    if (!raw) continue;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!isRecord(parsed)) throw new Error("Invalid report payload");
+
+      const normalized = normalizeFormSnapshot(parsed);
+      const merged = mergeAutoExecutiveIntoForm(normalized, getOpsScoreForTab(descriptor.tabKey, normalized));
+      const ops = getOpsScoreForTab(descriptor.tabKey, merged);
+      const issueCount = getIssueCountForTab(descriptor.tabKey, merged.sections || {});
+      const dedupeKey = [
+        descriptor.tabKey,
+        merged.header?.reportDate || descriptor.reportDate || "",
+        merged.header?.site || descriptor.site || "",
+        merged.header?.shift || descriptor.shift || "",
+      ].join("::");
+
+      const record = {
+        key,
+        tabKey: descriptor.tabKey,
+        label: REPORT_TAB_META[descriptor.tabKey]?.label || descriptor.tabKey,
+        department: getDepartmentDisplayName(descriptor.tabKey, merged.header),
+        reportDate: merged.header?.reportDate || descriptor.reportDate || "",
+        site: merged.header?.site || descriptor.site || "",
+        shift: merged.header?.shift || descriptor.shift || "",
+        manager: String(merged.header?.manager || "").trim(),
+        score: Number(ops.score || 0),
+        grade: ops.grade?.label || "—",
+        issueCount,
+        warningCount: Array.isArray(ops.deductions) ? ops.deductions.length : 0,
+        savedAt: String(merged.meta?.savedAt || "").trim(),
+        summaryText: String(merged.managerSummary?.generalComment || "").trim(),
+      };
+
+      const prev = seen.get(dedupeKey);
+      const prevSavedAt = prev?.savedAt ? Date.parse(prev.savedAt) : 0;
+      const nextSavedAt = record.savedAt ? Date.parse(record.savedAt) : 0;
+      if (!prev || nextSavedAt >= prevSavedAt) {
+        seen.set(dedupeKey, record);
+      }
+    } catch (error) {
+      console.error("Dữ liệu Báo cáo bị lỗi, đang bỏ qua key:", key, error);
+      brokenKeys.push(key);
+    }
+  }
+
+  if (brokenKeys.length) {
+    resetReportStorageKeys(brokenKeys);
+  }
+
+  seen.forEach((value) => rows.push(value));
+  rows.sort((a, b) => {
+    const dateDiff = String(b.reportDate || "").localeCompare(String(a.reportDate || ""));
+    if (dateDiff !== 0) return dateDiff;
+    return String(a.label || "").localeCompare(String(b.label || ""));
+  });
+  return rows;
 }
 
 /** KPI + tổng kết quản lý tự suy ra từ dữ liệu vận hành (sections + header), không nhập tay ở Nhóm D. */
@@ -1691,10 +2060,8 @@ function addDaysYmd(ymd, offsetDays) {
 
 function loadProcurementTotalByDate(header, tabKey, dateYmd) {
   try {
-    const key = `${storageKey({ ...header, reportDate: dateYmd })}::${tabKey}`;
-    const raw = localStorage.getItem(key);
-    if (!raw) return 0;
-    const parsed = JSON.parse(raw);
+    const { parsed } = readStoredReportSnapshot({ ...header, reportDate: dateYmd }, tabKey);
+    if (!parsed) return 0;
     const normalized = normalizeFormSnapshot(parsed);
     return aggregateProcurementStats(normalized.sections || {}).total || 0;
   } catch {
@@ -2057,6 +2424,33 @@ function mergeAutoExecutiveIntoForm(currentForm, opsScoreOverride) {
   };
 }
 
+function resetSectionDetailState(sectionKey, section) {
+  const next = {
+    ...section,
+    hasIssue: false,
+    status: "ok",
+    note: "",
+    issueTitle: "",
+    issueDetail: "",
+    cause: "",
+    issueSource: "",
+    responsibility: "",
+    issueType: "",
+    impactLevel: "",
+    actionTaken: "",
+    issueOwner: "",
+    issueDeadline: "",
+    issueResult: "",
+  };
+
+  if (sectionKey === "bepChayHangPhatSinh") next.chayHangRows = defaultChayHangRows();
+  else if (sectionKey.startsWith("wh")) next.issueRows = defaultWhIssueRows();
+  else if (sectionKey.startsWith("pm")) next.costRows = defaultPmCostRows();
+  else next.issueItems = [emptyIssueDetailRow()];
+
+  return next;
+}
+
 function renderQuickFieldInput(field, section, onSectionChange) {
   const value = section[field.key] ?? "";
   if (field.type === "selectYN") {
@@ -2091,328 +2485,129 @@ function renderQuickFieldInput(field, section, onSectionChange) {
   );
 }
 
-/** Chi tiết phát sinh: 1 bảng, 1 dòng = 1 issue; chỉ số kèm theo gộp 2 cột (tên chỉ số | giá trị). */
-function SectionIssueDetailTable({ section, onSectionChange, errors, quickFields = [] }) {
+/** Chi tiết phát sinh: bảng gọn, 1 dòng = 1 phát sinh / nguyên nhân / giải pháp. */
+function SectionIssueDetailTable({ section, onSectionChange, errors = {}, onSave }) {
+  const rows = issueDetailRowsFromSection(section);
+
+  const syncRows = (nextRows) => {
+    const safeRows = nextRows.length ? nextRows.map(normalizeIssueDetailRow) : [emptyIssueDetailRow()];
+    onSectionChange("issueItems", safeRows);
+  };
+
+  const updateRow = (idx, field, value) => {
+    const nextRows = rows.map((row, i) => (i === idx ? { ...row, [field]: value } : row));
+    syncRows(nextRows);
+  };
+
+  const addRow = () => {
+    syncRows([...rows, emptyIssueDetailRow()]);
+  };
+
+  const removeRow = (idx) => {
+    if (rows.length <= 1) return;
+    syncRows(rows.filter((_, i) => i !== idx));
+  };
+
+  const handleSaveIssue = () => {
+    onSave?.();
+  };
+
   return (
-    <div className="report-issue-detail-wrap">
+    <div className="report-issue-detail-wrap report-issue-detail-subtable">
       <div className="report-issue-detail-caption">Chi tiết phát sinh</div>
+
       <table className="report-detail-table report-issue-issue-table">
         <thead>
           <tr>
             <th className="col-issue-stt">STT</th>
             <th className="col-issue-title">Nội dung phát sinh</th>
             <th className="col-issue-cause">Nguyên nhân</th>
-            <th className="col-issue-action">Hướng xử lý</th>
-            <th className="col-issue-resp">Trách nhiệm</th>
-            <th className="col-issue-deadline">Deadline</th>
-            <th className="col-issue-result">Kết quả</th>
-            <th className="col-issue-source">Nguồn lỗi</th>
-            <th className="col-issue-owner">Người phụ trách</th>
-            <th className="col-issue-kpi-name">Chỉ số liên quan</th>
-            <th className="col-issue-kpi-value">Giá trị / Trạng thái</th>
+            <th className="col-issue-action">Giải pháp</th>
+            <th className="col-issue-resp">Nhân sự phụ trách</th>
+            <th className="col-issue-deadline">Deadline hoàn thành</th>
+            <th style={{ width: 48 }}>Xóa</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td className="col-issue-stt">
-              <span className="report-issue-stt">1</span>
-            </td>
-            <td className="col-issue-title">
-              <input
-                className="report-input"
-                type="text"
-                placeholder="Mô tả ngắn gọn"
-                value={section.issueTitle}
-                onChange={(e) => onSectionChange("issueTitle", e.target.value)}
-              />
-              {errors.issueTitle ? <div className="report-error-text">{errors.issueTitle}</div> : null}
-            </td>
-            <td className="col-issue-cause">
-              <textarea
-                className="report-textarea"
-                rows={2}
-                placeholder="Nguyên nhân"
-                value={section.cause}
-                onChange={(e) => onSectionChange("cause", e.target.value)}
-              />
-              {errors.cause ? <div className="report-error-text">{errors.cause}</div> : null}
-            </td>
-            <td className="col-issue-action">
-              <textarea
-                className="report-textarea"
-                rows={2}
-                placeholder="Hướng xử lý"
-                value={section.actionTaken}
-                onChange={(e) => onSectionChange("actionTaken", e.target.value)}
-              />
-              {errors.actionTaken ? <div className="report-error-text">{errors.actionTaken}</div> : null}
-            </td>
-            <td className="col-issue-resp">
-              <select className="report-select" value={section.responsibility} onChange={(e) => onSectionChange("responsibility", e.target.value)}>
-                <option value="">—</option>
-                {RESPONSIBILITY_OPTIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-              {errors.responsibility ? <div className="report-error-text">{errors.responsibility}</div> : null}
-            </td>
-            <td className="col-issue-deadline">
-              <input
-                className="report-input report-input-date"
-                type="date"
-                value={section.issueDeadline || ""}
-                onChange={(e) => onSectionChange("issueDeadline", e.target.value)}
-              />
-            </td>
-            <td className="col-issue-result">
-              <input
-                className="report-input"
-                type="text"
-                placeholder="Kết quả"
-                value={section.issueResult || ""}
-                onChange={(e) => onSectionChange("issueResult", e.target.value)}
-              />
-            </td>
-            <td className="col-issue-source">
-              <select className="report-select" value={section.issueSource} onChange={(e) => onSectionChange("issueSource", e.target.value)}>
-                <option value="">—</option>
-                {SOURCE_OPTIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-              {errors.issueSource ? <div className="report-error-text">{errors.issueSource}</div> : null}
-            </td>
-            <td className="col-issue-owner">
-              <input
-                className="report-input"
-                type="text"
-                placeholder="Họ tên"
-                value={section.issueOwner || ""}
-                onChange={(e) => onSectionChange("issueOwner", e.target.value)}
-              />
-            </td>
-            <td className="col-issue-kpi-name">
-              {quickFields.length === 0 ? (
-                <span className="report-issue-kpi-empty">—</span>
-              ) : (
-                <div className="report-issue-kpi-stack">
-                  {quickFields.map((field) => (
-                    <div key={field.key} className="report-issue-kpi-line report-issue-kpi-line-label">
-                      {field.label}
-                    </div>
+          {rows.map((row, idx) => (
+            <tr key={`issue-row-${idx}`}>
+              <td className="col-issue-stt">
+                <span className="report-issue-stt">{idx + 1}</span>
+              </td>
+              <td className="col-issue-title">
+                <input
+                  className="report-input"
+                  type="text"
+                  placeholder="Mô tả ngắn gọn"
+                  value={row.issueTitle || ""}
+                  onChange={(e) => updateRow(idx, "issueTitle", e.target.value)}
+                />
+                {idx === 0 && errors.issueTitle ? <div className="report-error-text">{errors.issueTitle}</div> : null}
+              </td>
+              <td className="col-issue-cause">
+                <textarea
+                  className="report-textarea"
+                  rows={2}
+                  placeholder="Nguyên nhân"
+                  value={row.cause || ""}
+                  onChange={(e) => updateRow(idx, "cause", e.target.value)}
+                />
+                {idx === 0 && errors.cause ? <div className="report-error-text">{errors.cause}</div> : null}
+              </td>
+              <td className="col-issue-action">
+                <textarea
+                  className="report-textarea"
+                  rows={2}
+                  placeholder="Giải pháp / hướng xử lý"
+                  value={row.actionTaken || ""}
+                  onChange={(e) => updateRow(idx, "actionTaken", e.target.value)}
+                />
+                {idx === 0 && errors.actionTaken ? <div className="report-error-text">{errors.actionTaken}</div> : null}
+              </td>
+              <td className="col-issue-resp">
+                <select
+                  className="report-select"
+                  value={row.responsibility || ""}
+                  onChange={(e) => updateRow(idx, "responsibility", e.target.value)}
+                >
+                  <option value="">—</option>
+                  {RESPONSIBILITY_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
                   ))}
-                </div>
-              )}
-            </td>
-            <td className="col-issue-kpi-value">
-              {quickFields.length === 0 ? (
-                <span className="report-issue-kpi-empty">—</span>
-              ) : (
-                <div className="report-issue-kpi-stack">
-                  {quickFields.map((field) => (
-                    <div key={field.key} className="report-issue-kpi-line report-issue-kpi-line-value">
-                      {renderQuickFieldInput(field, section, onSectionChange)}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </td>
-          </tr>
+                </select>
+                {idx === 0 && errors.responsibility ? <div className="report-error-text">{errors.responsibility}</div> : null}
+              </td>
+              <td className="col-issue-deadline">
+                <input
+                  className="report-input report-input-date"
+                  type="date"
+                  value={row.issueDeadline || ""}
+                  onChange={(e) => updateRow(idx, "issueDeadline", e.target.value)}
+                />
+              </td>
+              <td>
+                <button
+                  type="button"
+                  className="report-row-delete-btn"
+                  onClick={() => removeRow(idx)}
+                  disabled={rows.length <= 1}
+                  aria-label={`Xóa dòng ${idx + 1}`}
+                >
+                  <RowDeleteIcon2D />
+                </button>
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-/** Card chi tiết phát sinh — layout dọc, dùng cho Nhóm A (Management). */
-function SectionIssueDetailCard({ sectionTitle, section, onSectionChange, errors, quickFields = [], onClose }) {
-  const firstInputRef = useRef(null);
-  useEffect(() => {
-    firstInputRef.current?.focus();
-  }, []);
-
-  return (
-    <div className="report-issue-detail-card">
-      <div className="report-issue-detail-head">
-        <div>
-          <div className="report-issue-detail-eyebrow">Nhóm A · Chuẩn bị vận hành</div>
-          <h3 className="report-issue-detail-title">Chi tiết phát sinh: {sectionTitle}</h3>
-        </div>
-        <button type="button" className="report-toolbar-saas-ghost" onClick={onClose}>
-          Đóng / Quay lại danh sách
+      <div className="report-detail-actions">
+        <button type="button" className="report-row-plus-btn" onClick={addRow} aria-label="Thêm dòng phát sinh">
+          + Thêm dòng
         </button>
-      </div>
-
-      <div className="report-issue-detail-grid">
-        <label className="report-issue-field report-issue-field--full">
-          <span>Nội dung phát sinh</span>
-          <input
-            ref={firstInputRef}
-            className="report-input"
-            type="text"
-            placeholder="Mô tả ngắn gọn"
-            value={section.issueTitle}
-            onChange={(e) => onSectionChange("issueTitle", e.target.value)}
-          />
-          {errors.issueTitle ? <div className="report-error-text">{errors.issueTitle}</div> : null}
-        </label>
-
-        <label className="report-issue-field">
-          <span>Nguyên nhân</span>
-          <textarea
-            className="report-textarea"
-            rows={2}
-            placeholder="Nguyên nhân"
-            value={section.cause}
-            onChange={(e) => onSectionChange("cause", e.target.value)}
-          />
-          {errors.cause ? <div className="report-error-text">{errors.cause}</div> : null}
-        </label>
-
-        <label className="report-issue-field">
-          <span>Hướng xử lý</span>
-          <textarea
-            className="report-textarea"
-            rows={2}
-            placeholder="Hướng xử lý"
-            value={section.actionTaken}
-            onChange={(e) => onSectionChange("actionTaken", e.target.value)}
-          />
-          {errors.actionTaken ? <div className="report-error-text">{errors.actionTaken}</div> : null}
-        </label>
-
-        <label className="report-issue-field">
-          <span>Trách nhiệm</span>
-          <select
-            className="report-select"
-            value={section.responsibility}
-            onChange={(e) => onSectionChange("responsibility", e.target.value)}
-          >
-            <option value="">—</option>
-            {RESPONSIBILITY_OPTIONS.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-          {errors.responsibility ? <div className="report-error-text">{errors.responsibility}</div> : null}
-        </label>
-
-        <label className="report-issue-field">
-          <span>Deadline</span>
-          <input
-            className="report-input report-input-date"
-            type="date"
-            value={section.issueDeadline || ""}
-            onChange={(e) => onSectionChange("issueDeadline", e.target.value)}
-          />
-        </label>
-
-        <label className="report-issue-field">
-          <span>Mức độ</span>
-          <select
-            className="report-select"
-            value={section.impactLevel}
-            onChange={(e) => onSectionChange("impactLevel", e.target.value)}
-          >
-            <option value="">Chọn mức độ</option>
-            {IMPACT_OPTIONS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="report-issue-field">
-          <span>Kết quả</span>
-          <input
-            className="report-input"
-            type="text"
-            placeholder="Kết quả"
-            value={section.issueResult || ""}
-            onChange={(e) => onSectionChange("issueResult", e.target.value)}
-          />
-        </label>
-
-        <label className="report-issue-field">
-          <span>Nguồn lỗi</span>
-          <select
-            className="report-select"
-            value={section.issueSource}
-            onChange={(e) => onSectionChange("issueSource", e.target.value)}
-          >
-            <option value="">—</option>
-            {SOURCE_OPTIONS.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-          {errors.issueSource ? <div className="report-error-text">{errors.issueSource}</div> : null}
-        </label>
-
-        <label className="report-issue-field">
-          <span>Người phụ trách</span>
-          <input
-            className="report-input"
-            type="text"
-            placeholder="Họ tên"
-            value={section.issueOwner || ""}
-            onChange={(e) => onSectionChange("issueOwner", e.target.value)}
-          />
-        </label>
-
-        <label className="report-issue-field report-issue-field--full">
-          <span>Giá trị / Trạng thái</span>
-          <div className="report-issue-kpi-stack">
-            {quickFields.length === 0 ? (
-              <span className="report-issue-kpi-empty">—</span>
-            ) : (
-              quickFields.map((field) => (
-                <div key={field.key} className="report-issue-kpi-line report-issue-kpi-line-value">
-                  <span className="report-issue-kpi-label">{field.label}</span>
-                  {renderQuickFieldInput(field, section, onSectionChange)}
-                </div>
-              ))
-            )}
-          </div>
-        </label>
-
-        <label className="report-issue-field report-issue-field--full">
-          <span>Ghi chú</span>
-          <textarea
-            className="report-textarea"
-            rows={2}
-            placeholder="Ghi chú thêm (nếu có)"
-            value={section.note || ""}
-            onChange={(e) => onSectionChange("note", e.target.value)}
-          />
-        </label>
-      </div>
-
-      <div className="report-issue-actions">
-        <button
-          type="button"
-          className="report-toolbar-saas-primary"
-          onClick={() => {
-            onSectionChange("hasIssue", true);
-            onClose?.();
-          }}
-        >
-          <span className="report-toolbar-saas-primary-main">
-            <span className="report-toolbar-saas-primary-icon" aria-hidden>
-              <ToolbarIconCheck />
-            </span>
-            <span className="report-toolbar-saas-primary-text">Lưu phát sinh</span>
-          </span>
-        </button>
-        <button type="button" className="report-toolbar-saas-ghost" onClick={onClose}>
-          Đóng / Quay lại danh sách
+        <button type="button" className="report-row-save-btn" onClick={handleSaveIssue} aria-label="Lưu và đóng chi tiết">
+          <ToolbarIconSave /> Lưu
         </button>
       </div>
     </div>
@@ -2441,42 +2636,42 @@ function WarehouseIssueDetailTable({
   warehouseSectionKey,
   onRowChange,
   onAddRow,
-  onRemoveLast,
+  onRemoveRow,
   errors,
+  onSave,
 }) {
-  const rowList = rows.length ? rows : defaultWhIssueRows();
+  const rowList = Array.isArray(rows) && rows.length ? rows : defaultWhIssueRows();
   const rowErrors = errors?.warehouseRowErrors || [];
   const isHsd = WH_HSD_KEYS.has(warehouseSectionKey);
 
   return (
-    <div className="report-issue-detail-wrap">
+    <div className="report-issue-detail-wrap accounting-detail-scope">
       <div className="report-issue-detail-caption">Chi tiết vận đề vận hành kho</div>
-      <table className="report-detail-table report-issue-issue-table">
-        <thead>
-          <tr>
-            <th className="col-issue-stt">STT</th>
-            <th className="col-issue-title">Vấn đề</th>
-            <th>Số lượng</th>
-            <th>Ngày hết hạn</th>
-            <th>Số ngày còn lại</th>
-            <th>Ảnh hưởng</th>
-            <th>Nguyên nhân</th>
-            <th>Xử lý</th>
-            <th>Phụ trách</th>
-            <th>Kết quả</th>
-          </tr>
-        </thead>
-        <tbody>
+      <div className="report-detail-scroll-wrap">
+        <div className="accounting-detail-grid accounting-detail-grid--warehouse" role="table" aria-label="Chi tiết vận đề vận hành kho">
+          <div className="grid-header" role="row">
+            <div role="columnheader">STT</div>
+            <div role="columnheader">Vấn đề</div>
+            <div role="columnheader">Số lượng</div>
+            <div role="columnheader">Ngày hết hạn</div>
+            <div role="columnheader">Số ngày còn lại</div>
+            <div role="columnheader">Ảnh hưởng</div>
+            <div role="columnheader">Nguyên nhân</div>
+            <div role="columnheader">Xử lý</div>
+            <div role="columnheader">Phụ trách</div>
+            <div role="columnheader">Kết quả</div>
+            <div role="columnheader">Xóa</div>
+          </div>
           {rowList.map((row, idx) => {
             const d = row.expiryDate ? diffCalendarDaysExpiryMinusReport(row.expiryDate, reportDate) : null;
             const tone = warehouseDaysLeftTone(d);
             const hint = warehouseActionHintFromDaysLeft(d);
             return (
-              <tr key={`wh-row-${idx}`}>
-                <td className="col-issue-stt">
+              <div key={`wh-row-${idx}`} className="grid-row" role="row">
+                <div role="cell" className="grid-cell grid-cell--center">
                   <span className="report-issue-stt">{idx + 1}</span>
-                </td>
-                <td className="col-issue-title">
+                </div>
+                <div role="cell" className="grid-cell">
                   <input
                     className="report-input"
                     type="text"
@@ -2485,8 +2680,8 @@ function WarehouseIssueDetailTable({
                     onChange={(e) => onRowChange(idx, "problem", e.target.value)}
                   />
                   {rowErrors[idx]?.problem ? <div className="report-error-text">{rowErrors[idx].problem}</div> : null}
-                </td>
-                <td>
+                </div>
+                <div role="cell" className="grid-cell">
                   <input
                     className="report-input"
                     type="text"
@@ -2495,8 +2690,8 @@ function WarehouseIssueDetailTable({
                     onChange={(e) => onRowChange(idx, "qty", e.target.value)}
                   />
                   {rowErrors[idx]?.qty ? <div className="report-error-text">{rowErrors[idx].qty}</div> : null}
-                </td>
-                <td>
+                </div>
+                <div role="cell" className="grid-cell">
                   <input
                     className="report-input report-input-date"
                     type="date"
@@ -2504,14 +2699,14 @@ function WarehouseIssueDetailTable({
                     onChange={(e) => onRowChange(idx, "expiryDate", e.target.value)}
                   />
                   {rowErrors[idx]?.expiryDate ? <div className="report-error-text">{rowErrors[idx].expiryDate}</div> : null}
-                </td>
-                <td>
+                </div>
+                <div role="cell" className="grid-cell">
                   <span style={{ fontWeight: 700, color: tone.color }}>{tone.label}</span>
                   {isHsd && hint ? (
                     <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Gợi ý: {hint}</div>
                   ) : null}
-                </td>
-                <td>
+                </div>
+                <div role="cell" className="grid-cell">
                   <input
                     className="report-input"
                     type="text"
@@ -2520,8 +2715,8 @@ function WarehouseIssueDetailTable({
                     onChange={(e) => onRowChange(idx, "impact", e.target.value)}
                   />
                   {rowErrors[idx]?.impact ? <div className="report-error-text">{rowErrors[idx].impact}</div> : null}
-                </td>
-                <td>
+                </div>
+                <div role="cell" className="grid-cell">
                   <input
                     className="report-input"
                     type="text"
@@ -2529,8 +2724,8 @@ function WarehouseIssueDetailTable({
                     value={row.cause}
                     onChange={(e) => onRowChange(idx, "cause", e.target.value)}
                   />
-                </td>
-                <td>
+                </div>
+                <div role="cell" className="grid-cell">
                   <textarea
                     className="report-textarea"
                     rows={2}
@@ -2538,8 +2733,8 @@ function WarehouseIssueDetailTable({
                     value={row.action}
                     onChange={(e) => onRowChange(idx, "action", e.target.value)}
                   />
-                </td>
-                <td>
+                </div>
+                <div role="cell" className="grid-cell">
                   <input
                     className="report-input"
                     type="text"
@@ -2547,8 +2742,8 @@ function WarehouseIssueDetailTable({
                     value={row.owner}
                     onChange={(e) => onRowChange(idx, "owner", e.target.value)}
                   />
-                </td>
-                <td>
+                </div>
+                <div role="cell" className="grid-cell">
                   <input
                     className="report-input"
                     type="text"
@@ -2556,71 +2751,91 @@ function WarehouseIssueDetailTable({
                     value={row.result}
                     onChange={(e) => onRowChange(idx, "result", e.target.value)}
                   />
-                </td>
-              </tr>
+                </div>
+                <div role="cell" className="grid-cell grid-cell--center">
+                  <button
+                    type="button"
+                    className="report-row-delete-btn"
+                    onClick={() => onRemoveRow(idx)}
+                    disabled={rowList.length <= 1}
+                    aria-label={`Xóa dòng kho ${idx + 1}`}
+                  >
+                    <RowDeleteIcon2D />
+                  </button>
+                </div>
+              </div>
             );
           })}
-        </tbody>
-      </table>
-      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-        <button type="button" className="report-expand-btn" onClick={onAddRow}>
-          + Thêm dòng
+        </div>
+      </div>
+      <div className="report-detail-actions">
+        <button
+          type="button"
+          className="report-row-plus-btn"
+          onClick={onAddRow}
+          aria-label="Thêm dòng kho"
+          title="Thêm dòng"
+        >
+          <PlusIcon2D />
         </button>
-        {rowList.length > 1 ? (
-          <button type="button" className="report-expand-btn" onClick={onRemoveLast}>
-            Xóa dòng cuối
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="report-row-save-btn"
+          onClick={onSave}
+          aria-label="Lưu chi tiết kho"
+          title="Lưu chi tiết"
+        >
+          <ToolbarIconSave />
+        </button>
       </div>
       {errors.issueRows ? <div className="report-error-text">{errors.issueRows}</div> : null}
     </div>
   );
 }
 
-function ProcurementCostDetailTable({ rows, onRowChange, onAddRow, onRemoveLast, errors }) {
-  const rowList = rows.length ? rows : defaultPmCostRows();
+function ProcurementCostDetailTable({ rows, onRowChange, onAddRow, onRemoveRow, errors, onSave }) {
+  const rowList = Array.isArray(rows) && rows.length ? rows : defaultPmCostRows();
   const rowErrors = errors?.procurementRowErrors || [];
   const total = rowList.reduce((sum, r) => sum + pmRowAmount(r), 0);
   return (
-    <div className="report-issue-detail-wrap">
+    <div className="report-issue-detail-wrap accounting-detail-scope">
       <div className="report-issue-detail-caption">Chi tiết chi phí phát sinh ngoài kế hoạch</div>
-      <table className="report-detail-table report-issue-issue-table">
-        <thead>
-          <tr>
-            <th className="col-issue-stt">STT</th>
-            <th>Nội dung chi phí</th>
-            <th>Số lượng</th>
-            <th>Đơn giá</th>
-            <th>Thành tiền</th>
-            <th>Loại chi phí</th>
-            <th>Nguồn phát sinh</th>
-            <th>Ảnh hưởng</th>
-            <th>Hướng xử lý</th>
-            <th>Kết quả</th>
-          </tr>
-        </thead>
-        <tbody>
+      <div className="report-detail-scroll-wrap">
+        <div className="accounting-detail-grid accounting-detail-grid--procurement" role="table" aria-label="Chi tiết chi phí phát sinh ngoài kế hoạch">
+          <div className="grid-header" role="row">
+            <div role="columnheader">STT</div>
+            <div role="columnheader">Nội dung chi phí</div>
+            <div role="columnheader">Số lượng</div>
+            <div role="columnheader">Đơn giá</div>
+            <div role="columnheader">Thành tiền</div>
+            <div role="columnheader">Loại chi phí</div>
+            <div role="columnheader">Nguồn phát sinh</div>
+            <div role="columnheader">Ảnh hưởng</div>
+            <div role="columnheader">Hướng xử lý</div>
+            <div role="columnheader">Kết quả</div>
+            <div role="columnheader">Xóa</div>
+          </div>
           {rowList.map((row, idx) => (
-            <tr key={`pm-row-${idx}`} style={{ background: pmRowAmount(row) > 500000 ? "#fffbeb" : "transparent" }}>
-              <td className="col-issue-stt">
+            <div key={`pm-row-${idx}`} className="grid-row" role="row" style={{ background: pmRowAmount(row) > 500000 ? "#fffbeb" : "transparent" }}>
+              <div role="cell" className="grid-cell grid-cell--center">
                 <span className="report-issue-stt">{idx + 1}</span>
-              </td>
-              <td>
+              </div>
+              <div role="cell" className="grid-cell">
                 <input className="report-input" type="text" placeholder="Nội dung chi phí" value={row.content} onChange={(e) => onRowChange(idx, "content", e.target.value)} />
                 {rowErrors[idx]?.content ? <div className="report-error-text">{rowErrors[idx].content}</div> : null}
-              </td>
-              <td>
+              </div>
+              <div role="cell" className="grid-cell">
                 <input className="report-input" type="number" min="0" step="any" placeholder="0" value={row.qty} onChange={(e) => onRowChange(idx, "qty", e.target.value)} />
                 {rowErrors[idx]?.qty ? <div className="report-error-text">{rowErrors[idx].qty}</div> : null}
-              </td>
-              <td>
+              </div>
+              <div role="cell" className="grid-cell">
                 <input className="report-input" type="number" min="0" step="any" placeholder="0" value={row.unitPrice} onChange={(e) => onRowChange(idx, "unitPrice", e.target.value)} />
                 {rowErrors[idx]?.unitPrice ? <div className="report-error-text">{rowErrors[idx].unitPrice}</div> : null}
-              </td>
-              <td>
+              </div>
+              <div role="cell" className="grid-cell">
                 <input className="report-input" type="text" readOnly value={formatCurrencyVnd(pmRowAmount(row))} />
-              </td>
-              <td>
+              </div>
+              <div role="cell" className="grid-cell">
                 <select className="report-select" value={row.costType} onChange={(e) => onRowChange(idx, "costType", e.target.value)}>
                   <option value="">—</option>
                   {PM_COST_TYPE_OPTIONS.map((opt) => (
@@ -2630,8 +2845,8 @@ function ProcurementCostDetailTable({ rows, onRowChange, onAddRow, onRemoveLast,
                   ))}
                 </select>
                 {rowErrors[idx]?.costType ? <div className="report-error-text">{rowErrors[idx].costType}</div> : null}
-              </td>
-              <td>
+              </div>
+              <div role="cell" className="grid-cell">
                 <select className="report-select" value={row.source} onChange={(e) => onRowChange(idx, "source", e.target.value)}>
                   <option value="">—</option>
                   {PM_SOURCE_OPTIONS.map((opt) => (
@@ -2641,31 +2856,52 @@ function ProcurementCostDetailTable({ rows, onRowChange, onAddRow, onRemoveLast,
                   ))}
                 </select>
                 {rowErrors[idx]?.source ? <div className="report-error-text">{rowErrors[idx].source}</div> : null}
-              </td>
-              <td>
+              </div>
+              <div role="cell" className="grid-cell">
                 <input className="report-input" type="text" placeholder="Nguyên nhân / ảnh hưởng" value={row.impact} onChange={(e) => onRowChange(idx, "impact", e.target.value)} />
                 {rowErrors[idx]?.impact ? <div className="report-error-text">{rowErrors[idx].impact}</div> : null}
-              </td>
-              <td>
+              </div>
+              <div role="cell" className="grid-cell">
                 <textarea className="report-textarea" rows={2} placeholder="Hướng xử lý" value={row.action} onChange={(e) => onRowChange(idx, "action", e.target.value)} />
-              </td>
-              <td>
+              </div>
+              <div role="cell" className="grid-cell">
                 <input className="report-input" type="text" placeholder="Kết quả" value={row.result} onChange={(e) => onRowChange(idx, "result", e.target.value)} />
-              </td>
-            </tr>
+              </div>
+              <div role="cell" className="grid-cell grid-cell--center">
+                <button
+                  type="button"
+                  className="report-row-delete-btn"
+                  onClick={() => onRemoveRow(idx)}
+                  disabled={rowList.length <= 1}
+                  aria-label={`Xóa dòng chi phí ${idx + 1}`}
+                >
+                  <RowDeleteIcon2D />
+                </button>
+              </div>
+            </div>
           ))}
-        </tbody>
-      </table>
-      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-        <button type="button" className="report-expand-btn" onClick={onAddRow}>
-          + Thêm dòng
+        </div>
+      </div>
+      <div className="report-detail-actions">
+        <button
+          type="button"
+          className="report-row-plus-btn"
+          onClick={onAddRow}
+          aria-label="Thêm dòng chi phí"
+          title="Thêm dòng"
+        >
+          <PlusIcon2D />
         </button>
-        {rowList.length > 1 ? (
-          <button type="button" className="report-expand-btn" onClick={onRemoveLast}>
-            Xóa dòng cuối
-          </button>
-        ) : null}
-        <div style={{ marginLeft: "auto", fontWeight: 700 }}>Tổng phát sinh: {formatCurrencyVnd(total)}</div>
+        <button
+          type="button"
+          className="report-row-save-btn"
+          onClick={onSave}
+          aria-label="Lưu chi tiết chi phí"
+          title="Lưu chi tiết"
+        >
+          <ToolbarIconSave />
+        </button>
+        <div className="report-detail-actions-total">Tổng phát sinh: {formatCurrencyVnd(total)}</div>
       </div>
       {errors.costRows ? <div className="report-error-text">{errors.costRows}</div> : null}
     </div>
@@ -2673,7 +2909,7 @@ function ProcurementCostDetailTable({ rows, onRowChange, onAddRow, onRemoveLast,
 }
 
 function BepChayHangDetailTable({ rows, onRowChange, onAddRow, onRemoveLast, errors }) {
-  const rowList = rows.length ? rows : defaultChayHangRows();
+  const rowList = Array.isArray(rows) && rows.length ? rows : defaultChayHangRows();
   const rowErrors = errors?.chayHangRowErrors || [];
   return (
     <div className="report-issue-detail-wrap">
@@ -2761,7 +2997,7 @@ function BepChayHangDetailTable({ rows, onRowChange, onAddRow, onRemoveLast, err
           ))}
         </tbody>
       </table>
-      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+      <div className="report-detail-actions">
         <button type="button" className="report-expand-btn" onClick={onAddRow}>
           + Thêm dòng
         </button>
@@ -2781,6 +3017,7 @@ function SectionCard({
   section,
   expanded,
   onToggle,
+  onIssueToggle,
   onSectionChange,
   errors = {},
   quickFields = [],
@@ -2792,10 +3029,8 @@ function SectionCard({
   onWarehouseIssueRowsChange,
   onProcurementCostRowsChange,
   isWarehouseAccountingMode = false,
-  isManagementGroupA = false,
-  isDetailOpen = false,
-  onOpenDetail,
-  onCloseDetail,
+  detailSavedText = "",
+  onSaveDetail,
 }) {
   const hasVisibleErrors = Object.keys(errors).length > 0;
   const tone = deriveIssueTone(section);
@@ -2827,7 +3062,8 @@ function SectionCard({
         ? section.responsibility || "Quản lý"
       : section.responsibility || "—";
 
-  const detailOpen = section.hasIssue && (isManagementGroupA ? isDetailOpen : expanded);
+  const detailOpen = section.hasIssue && expanded;
+  const issueToggleDisabled = false;
 
   return (
     <>
@@ -2842,37 +3078,32 @@ function SectionCard({
             className="report-expand-btn"
             onClick={() => {
               if (!section.hasIssue) return;
-              if (isManagementGroupA) {
-                detailOpen ? onCloseDetail?.() : onOpenDetail?.();
-              } else {
-                onToggle();
-              }
+              onToggle();
             }}
             disabled={!section.hasIssue}
-            aria-label={expanded ? "Thu gọn chi tiết" : "Mở rộng chi tiết"}
+            aria-label={detailOpen ? "Thu gọn chi tiết" : "Mở rộng chi tiết"}
           >
-            {expanded ? "−" : "+"}
+            {detailOpen ? "−" : "+"}
           </button>
         </td>
         <td className="report-cell report-cell-item">{title}</td>
         <td className="report-cell">
-          <select
-            className="report-select"
-            value={section.hasIssue ? "yes" : "no"}
-            disabled={hsdAutoLock}
-            onChange={(e) => {
-              const next = e.target.value === "yes";
-              onSectionChange("hasIssue", next);
-              if (isManagementGroupA) {
-                if (next) onOpenDetail?.();
-                else onCloseDetail?.();
-              }
-            }}
-          >
-            <option value="no">Không phát sinh</option>
-            <option value="yes">Có phát sinh</option>
-          </select>
+          <div className="report-issue-toggle">
+            <select
+              className={`report-issue-pill-select ${section.hasIssue ? "is-issue" : "is-clear"}`}
+              value={section.hasIssue ? "yes" : "no"}
+              onChange={(e) => onIssueToggle(e.target.value === "yes")}
+              disabled={issueToggleDisabled}
+              aria-label={`Trạng thái phát sinh của ${title}`}
+            >
+              <option value="no">Không phát sinh</option>
+              <option value="yes">Có phát sinh</option>
+            </select>
+          </div>
           {phatSinhExtra}
+          {detailSavedText ? (
+            <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: "#166534" }}>{detailSavedText}</div>
+          ) : null}
         </td>
         <td className="report-cell">
           <select
@@ -2909,23 +3140,6 @@ function SectionCard({
             title={section.hasIssue ? "Chỉnh trong form chi tiết (mở rộng)" : ""}
           />
         </td>
-        {isManagementGroupA ? (
-          <td className="report-cell report-cell-action">
-            <button
-              type="button"
-              className="report-toolbar-saas-ghost report-issue-add-btn"
-              onClick={() => {
-                onSectionChange("hasIssue", true);
-                onOpenDetail?.();
-              }}
-              aria-label="Thêm / sửa phát sinh"
-            >
-              <span className="report-toolbar-saas-ghost-icon" aria-hidden>
-                <ToolbarIconSave />
-              </span>
-            </button>
-          </td>
-        ) : null}
         <td className="report-cell">
           <input
             className="report-input"
@@ -2980,11 +3194,12 @@ function SectionCard({
                     },
                   ]);
                 }}
-                onRemoveLast={() => {
+                onRemoveRow={(idx) => {
                   if (whRows.length <= 1) return;
-                  onWarehouseIssueRowsChange(whRows.slice(0, -1));
+                  onWarehouseIssueRowsChange(whRows.filter((_, rowIdx) => rowIdx !== idx));
                 }}
                 errors={errors}
+                onSave={() => onSaveDetail?.(whRows.length)}
               />
             ) : detailVariant === "procurementCost" && onProcurementCostRowsChange ? (
               <ProcurementCostDetailTable
@@ -2999,27 +3214,19 @@ function SectionCard({
                     { content: "", qty: "", unitPrice: "", costType: "", source: "", impact: "", action: "", result: "" },
                   ]);
                 }}
-                onRemoveLast={() => {
+                onRemoveRow={(idx) => {
                   if (pmRows.length <= 1) return;
-                  onProcurementCostRowsChange(pmRows.slice(0, -1));
+                  onProcurementCostRowsChange(pmRows.filter((_, rowIdx) => rowIdx !== idx));
                 }}
                 errors={errors}
-              />
-            ) : isManagementGroupA ? (
-              <SectionIssueDetailCard
-                sectionTitle={title}
-                section={section}
-                onSectionChange={onSectionChange}
-                errors={errors}
-                quickFields={quickFields}
-                onClose={onCloseDetail}
+                onSave={() => onSaveDetail?.(pmRows.length)}
               />
             ) : (
               <SectionIssueDetailTable
                 section={section}
                 onSectionChange={onSectionChange}
                 errors={errors}
-                quickFields={quickFields}
+                onSave={onToggle}
               />
             )}
           </td>
@@ -3029,11 +3236,262 @@ function SectionCard({
   );
 }
 
-export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
-  const isServiceMode = initialTab === "service";
-  const isKitchenMode = initialTab === "bep";
-  const isWarehouseAccountingMode = initialTab === "accounting";
-  const isProcurementMode = initialTab === "warehouse";
+function BaoCaoSummaryDashboard({ onOpenTab }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedSite, setSelectedSite] = useState("");
+  const reportRows = useMemo(() => scanStoredReportEntries(), []);
+
+  const siteOptions = useMemo(() => {
+    return Array.from(new Set(reportRows.map((row) => row.site).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }, [reportRows]);
+
+  const filteredRows = useMemo(() => {
+    return reportRows.filter((row) => {
+      if (selectedDate && row.reportDate !== selectedDate) return false;
+      if (selectedSite && row.site !== selectedSite) return false;
+      return true;
+    });
+  }, [reportRows, selectedDate, selectedSite]);
+
+  const departmentCards = useMemo(() => {
+    return REPORT_FORM_TABS.map((tabKey) => {
+      const label = REPORT_TAB_META[tabKey]?.label || tabKey;
+      const row = filteredRows.find((item) => item.tabKey === tabKey);
+      return {
+        tabKey,
+        label,
+        status: row ? "Đã có báo cáo" : "Chưa có báo cáo",
+        manager: row?.manager || "—",
+        issueCount: row?.issueCount || 0,
+        warningCount: row?.warningCount || 0,
+        score: typeof row?.score === "number" ? row.score : null,
+      };
+    });
+  }, [filteredRows]);
+
+  const totals = useMemo(() => {
+    const reportCount = filteredRows.length;
+    const totalIssues = filteredRows.reduce((sum, row) => sum + Number(row.issueCount || 0), 0);
+    const totalWarnings = filteredRows.reduce((sum, row) => sum + Number(row.warningCount || 0), 0);
+    const averageScore = reportCount
+      ? (filteredRows.reduce((sum, row) => sum + Number(row.score || 0), 0) / reportCount).toFixed(1)
+      : "0.0";
+    return {
+      reportCount,
+      totalIssues,
+      totalWarnings,
+      averageScore,
+      missingDepartments: departmentCards.filter((item) => item.status !== "Đã có báo cáo").length,
+    };
+  }, [departmentCards, filteredRows]);
+
+  return (
+    <div className="report-summary-page">
+      <div className="report-dash-shell report-summary-shell">
+        <div className="report-dash-hero">
+          <div className="report-dash-hero-grid">
+            <div className="report-dash-hero-left">
+              <div className="report-dash-eyebrow">Sky Catering · Tổng hợp báo cáo</div>
+              <h1 className="report-dash-title">Tổng hợp ngày</h1>
+              <p className="report-summary-lead">
+                Màn hình tổng quan theo ngày để theo dõi đủ báo cáo bộ phận, tổng phát sinh và cảnh báo vận hành.
+              </p>
+              <div className="report-dash-row-2">
+                <div className="report-dash-field">
+                  <span className="report-dash-field-label">Ngày báo cáo</span>
+                  <input
+                    className="report-dash-input"
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                  />
+                </div>
+                <div className="report-dash-field">
+                  <span className="report-dash-field-label">Khu vực</span>
+                  <select
+                    className="report-dash-select"
+                    value={selectedSite}
+                    onChange={(e) => setSelectedSite(e.target.value)}
+                  >
+                    <option value="">Tất cả khu vực</option>
+                    {siteOptions.map((site) => (
+                      <option key={site} value={site}>
+                        {site}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <aside className="report-dash-kpi" aria-label="Tổng quan ngày">
+              <table className="report-ds-kpi-table">
+                <tbody>
+                  <tr>
+                    <th scope="row">Số báo cáo</th>
+                    <td>{totals.reportCount}/5</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Tổng phát sinh</th>
+                    <td>{totals.totalIssues}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Cảnh báo</th>
+                    <td>{totals.totalWarnings}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Điểm TB</th>
+                    <td>{totals.averageScore}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </aside>
+          </div>
+        </div>
+      </div>
+
+      <div className="report-summary-card-grid">
+        <div className="report-premium-card">
+          <div className="report-premium-card-label">KPI trong ngày</div>
+          <table className="report-ds-metric-table">
+            <tbody>
+              <tr>
+                <th scope="row">Bộ phận đã báo cáo</th>
+                <td>{totals.reportCount}</td>
+              </tr>
+              <tr>
+                <th scope="row">Bộ phận chưa báo cáo</th>
+                <td>{totals.missingDepartments}</td>
+              </tr>
+              <tr>
+                <th scope="row">Tổng cảnh báo</th>
+                <td>{totals.totalWarnings}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="report-premium-card">
+          <div className="report-premium-card-label">Danh sách bộ phận</div>
+          <div className="report-summary-dept-list">
+            {departmentCards.map((item) => (
+              <button
+                key={item.tabKey}
+                type="button"
+                className={`report-summary-dept-chip ${
+                  item.status === "Đã có báo cáo" ? "is-ready" : "is-missing"
+                }`}
+                onClick={() => onOpenTab?.(item.tabKey)}
+              >
+                <span>{item.label}</span>
+                <span>{item.status}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="report-ds-stack">
+        <div className="report-ds-group-head">
+          <div>
+            <div className="report-ds-group-code">TRẠNG THÁI BỘ PHẬN</div>
+            <div className="report-ds-group-title">Báo cáo theo ngày và bộ phận</div>
+          </div>
+        </div>
+        <div className="report-master-table-wrap report-day-erp">
+          <table className="report-master-table report-summary-table">
+            <thead>
+              <tr>
+                <th>Bộ phận</th>
+                <th>Trạng thái</th>
+                <th>Người lập</th>
+                <th>Phát sinh</th>
+                <th>Cảnh báo</th>
+                <th>Điểm</th>
+              </tr>
+            </thead>
+            <tbody>
+              {departmentCards.map((item) => (
+                <tr key={item.tabKey} className={`report-summary-row ${item.status === "Đã có báo cáo" ? "is-ready" : "is-missing"}`}>
+                  <td>{item.label}</td>
+                  <td>{item.status}</td>
+                  <td>{item.manager}</td>
+                  <td>{item.issueCount}</td>
+                  <td>{item.warningCount}</td>
+                  <td>
+                    <button type="button" className="report-summary-open-btn" onClick={() => onOpenTab?.(item.tabKey)}>
+                      {item.score == null ? "Mở tab" : `${item.score} · Mở`}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="report-ds-stack">
+        <div className="report-ds-group-head">
+          <div>
+            <div className="report-ds-group-code">DANH SÁCH BÁO CÁO</div>
+            <div className="report-ds-group-title">Báo cáo đã lưu</div>
+          </div>
+        </div>
+        <div className="report-master-table-wrap report-day-erp">
+          <table className="report-master-table report-summary-table">
+            <thead>
+              <tr>
+                <th>Ngày</th>
+                <th>Bộ phận</th>
+                <th>Khu vực</th>
+                <th>Ca</th>
+                <th>Người lập</th>
+                <th>Phát sinh</th>
+                <th>Cảnh báo</th>
+                <th>Điểm</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.length ? (
+                filteredRows.map((row) => (
+                  <tr key={`${row.tabKey}-${row.reportDate}-${row.site}-${row.shift}`}>
+                    <td>{row.reportDate || "—"}</td>
+                    <td>{row.label}</td>
+                    <td>{row.site || "—"}</td>
+                    <td>{row.shift || "—"}</td>
+                    <td>{row.manager || "—"}</td>
+                    <td>{row.issueCount}</td>
+                    <td>{row.warningCount}</td>
+                    <td>
+                      <button type="button" className="report-summary-open-btn" onClick={() => onOpenTab?.(row.tabKey)}>
+                        {row.score} · Mở
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="report-summary-empty">
+                    Chưa có báo cáo lưu cho bộ lọc hiện tại.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BaoCaoReportForm({ initialTab = "management" }) {
+  const currentTabKey = normalizeReportTabKey(initialTab || "summary");
+  const isManagementMode = currentTabKey === "management";
+  const isServiceMode = currentTabKey === "service";
+  const isKitchenMode = currentTabKey === "bep";
+  const isWarehouseAccountingMode = currentTabKey === "accounting";
+  const isProcurementMode = currentTabKey === "warehouse";
   const activeSectionConfig = isKitchenMode
     ? KITCHEN_SECTION_CONFIG
     : isWarehouseAccountingMode
@@ -3045,13 +3503,14 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
         : MANAGEMENT_SECTION_CONFIG;
 
   const computeOpsForForm = (f) =>
-    initialTab === "bep"
+    currentTabKey === "bep"
       ? computeKitchenOperationalScore(f.sections, f.header)
-      : initialTab === "accounting"
+      : currentTabKey === "accounting"
         ? computeWarehouseOperationalScore(f.sections, f.header)
-        : initialTab === "warehouse"
+      : currentTabKey === "warehouse"
           ? computeProcurementOperationalScore(f.sections, f.header)
         : computeOperationalDayScore(f.sections, f.header);
+
   const [form, setForm] = useState(createDefaultForm);
   const masterCatalog = useMasterCatalogSnapshot();
   const siteSelectOptions = useMemo(() => buildSiteSelectOptions(), [masterCatalog]);
@@ -3067,12 +3526,13 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
     return n.length ? n : ["Ca ngày", "Ca đêm"];
   }, [masterCatalog]);
   const kitchenOptionsWithLegacy = useMemo(() => {
-    const names = masterCatalog.departments.map((d) => d.name);
+    const departments = Array.isArray(masterCatalog?.departments) ? masterCatalog.departments : [];
+    const names = departments.map((d) => d.name);
     const v = String(form.header.kitchen || "").trim();
     if (v && !names.includes(v)) {
-      return [{ id: "__legacy__", name: v }, ...masterCatalog.departments];
+      return [{ id: "__legacy__", name: v }, ...departments];
     }
-    return masterCatalog.departments;
+    return departments;
   }, [masterCatalog, form.header.kitchen]);
   const [openSections, setOpenSections] = useState({
     dauCaRuiRo: true,
@@ -3085,11 +3545,14 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
     atvstp: true,
     managerSummary: true,
   });
-  const [openIssueKey, setOpenIssueKey] = useState(null);
   const [saveMessage, setSaveMessage] = useState("");
   /** Chuỗi JSON đã lưu gần nhất (để badge “Chưa lưu” khi có chỉnh sửa). */
   const [persistedSig, setPersistedSig] = useState("");
+  const [saveState, setSaveState] = useState("");
+  const [savedAtText, setSavedAtText] = useState("");
+  const [detailSavedMeta, setDetailSavedMeta] = useState({});
   const [errors, setErrors] = useState({});
+  const [tabHeaders, setTabHeaders] = useState({});
   const [openGroups, setOpenGroups] = useState(() =>
     activeSectionConfig.reduce((acc, group) => ({ ...acc, [group.group]: true }), {})
   );
@@ -3107,45 +3570,82 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
     }));
   }, [activeSectionConfig]);
 
-  const saveKey = useMemo(() => `${storageKey(form.header)}::${initialTab}`, [form.header, initialTab]);
+  const saveKey = useMemo(
+    () => reportStorageKey(form.header, currentTabKey),
+    [form.header.reportDate, form.header.site, form.header.shift, currentTabKey]
+  );
+
+  const formatSavedAtText = (value) => {
+    if (!value) return "";
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `Đã lưu lúc ${pad(dt.getHours())}:${pad(dt.getMinutes())} ${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()}`;
+  };
 
   const currentSig = useMemo(() => {
     try {
       const ops =
-        initialTab === "bep"
+        currentTabKey === "bep"
           ? computeKitchenOperationalScore(form.sections, form.header)
-          : initialTab === "accounting"
+          : currentTabKey === "accounting"
             ? computeWarehouseOperationalScore(form.sections, form.header)
-            : initialTab === "warehouse"
+            : currentTabKey === "warehouse"
               ? computeProcurementOperationalScore(form.sections, form.header)
             : computeOperationalDayScore(form.sections, form.header);
       return JSON.stringify(normalizeFormSnapshot(mergeAutoExecutiveIntoForm(form, ops)));
     } catch {
       return "";
     }
-  }, [form, initialTab]);
+  }, [form, currentTabKey]);
 
   const showUnsavedBadge = persistedSig !== "" && currentSig !== persistedSig;
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(saveKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
+      const { parsed, brokenKeys } = readStoredReportSnapshot(form.header, currentTabKey);
+      if (parsed) {
         const normalized = normalizeFormSnapshot(parsed);
         const merged = mergeAutoExecutiveIntoForm(normalized, computeOpsForForm(normalized));
+        const savedMode = String(merged.meta?.saveMode || "");
+        const savedAt = String(merged.meta?.savedAt || "");
         setForm(merged);
+        setTabHeaders((prev) => ({ ...prev, [currentTabKey]: { ...merged.header } }));
         setPersistedSig(JSON.stringify(normalizeFormSnapshot(merged)));
+        setSaveState(savedMode);
+        setSavedAtText(formatSavedAtText(savedAt));
+        setDetailSavedMeta(isRecord(merged.meta?.detailSaved) ? merged.meta.detailSaved : {});
+        if (brokenKeys.length) {
+          setSaveMessage("Đã reset dữ liệu Báo cáo cũ bị lỗi cho tab hiện tại.");
+        }
       } else {
+        const tabHeader = buildHeaderForTab(currentTabKey, tabHeaders[currentTabKey] || {});
         const next = {
           ...createDefaultForm(),
-          header: { ...createDefaultForm().header, ...form.header },
+          header: tabHeader,
         };
         setForm(next);
+        setTabHeaders((prev) => ({ ...prev, [currentTabKey]: { ...tabHeader } }));
         setPersistedSig(JSON.stringify(normalizeFormSnapshot(mergeAutoExecutiveIntoForm(next, computeOpsForForm(next)))));
+        setSaveState("");
+        setSavedAtText("");
+        setDetailSavedMeta({});
+        if (brokenKeys.length) {
+          setSaveMessage("Đã reset dữ liệu Báo cáo cũ bị lỗi cho tab hiện tại.");
+        }
       }
     } catch (error) {
       console.error("Không đọc được dữ liệu báo cáo:", error);
+      if (isManagementMode) console.error("MANAGEMENT CRASH:", error);
+      resetReportStorageKeys(buildReportStorageKeys(form.header, currentTabKey));
+      const fallbackHeader = buildHeaderForTab(currentTabKey, tabHeaders[currentTabKey] || {});
+      const fallback = { ...createDefaultForm(), header: fallbackHeader };
+      setForm(fallback);
+      setPersistedSig("");
+      setSaveState("");
+      setSavedAtText("");
+      setDetailSavedMeta({});
+      setSaveMessage("Dữ liệu Báo cáo bị lỗi nên đã được reset riêng cho tab hiện tại.");
     }
     // Chỉ chạy khi saveKey đổi; nhánh không có LS dùng form.header theo key hiện tại.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ phụ thuộc saveKey
@@ -3153,11 +3653,11 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
 
   const execView = useMemo(() => {
     const opsScore =
-      initialTab === "bep"
+      currentTabKey === "bep"
         ? computeKitchenOperationalScore(form.sections, form.header)
-        : initialTab === "accounting"
+        : currentTabKey === "accounting"
           ? computeWarehouseOperationalScore(form.sections, form.header)
-          : initialTab === "warehouse"
+          : currentTabKey === "warehouse"
             ? computeProcurementOperationalScore(form.sections, form.header)
           : computeOperationalDayScore(form.sections, form.header);
     const { autoMetrics } = opsScore;
@@ -3165,9 +3665,9 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
     const warehouseHsdAgg = aggregateWarehouseHsdStats(form.sections, form.header.reportDate || "");
     const procurementStats = buildProcurementFinanceStats(form.sections, form.header, "warehouse");
     const briefAssessment =
-      initialTab === "accounting"
+      currentTabKey === "accounting"
         ? buildWarehouseBriefAssessment(opsScore, warehouseHsdAgg)
-        : initialTab === "warehouse"
+        : currentTabKey === "warehouse"
           ? `Tổng phát sinh: ${formatCurrencyVnd(procurementStats.todayTotal)}. So với hôm qua: ${
               procurementStats.diff >= 0 ? "+" : ""
             }${formatCurrencyVnd(procurementStats.diff)} (${procurementStats.diffPct.toFixed(1)}%). So với TB 7 ngày: ${
@@ -3175,7 +3675,7 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
             }${procurementStats.vs7Pct.toFixed(1)}% (${procurementStats.severity}).`
         : buildOpsBriefAssessment(opsScore);
     return { autoMetrics, autoManager, opsScore, briefAssessment, warehouseHsdAgg, procurementStats };
-  }, [form, initialTab]);
+  }, [form, currentTabKey]);
 
   const kitchenFooterStats = useMemo(() => {
     if (!isKitchenMode) return null;
@@ -3188,24 +3688,6 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
     return { plan, rush, pct, assess };
   }, [isKitchenMode, form.header.plannedMeals, form.sections.bepChayHangPhatSinh]);
 
-  useEffect(() => {
-    if (!isWarehouseAccountingMode) return;
-    const rd = form.header.reportDate || "";
-    setForm((prev) => {
-      const nextSections = { ...prev.sections };
-      let changed = false;
-      Object.keys(nextSections).forEach((k) => {
-        if (!k.startsWith("wh")) return;
-        const synced = syncWarehouseAccountingSection(nextSections[k], k, rd);
-        if (JSON.stringify(synced) !== JSON.stringify(nextSections[k])) {
-          nextSections[k] = synced;
-          changed = true;
-        }
-      });
-      return changed ? { ...prev, sections: nextSections } : prev;
-    });
-  }, [isWarehouseAccountingMode, form.header.reportDate]);
-
   const warehouseKitchenPriority = useMemo(() => {
     if (!isWarehouseAccountingMode) return false;
     const rd = form.header.reportDate || "";
@@ -3216,13 +3698,14 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
   }, [isWarehouseAccountingMode, form.sections, form.header.reportDate]);
 
   const summary = useMemo(() => {
-    const sectionsVals = Object.values(form.sections);
+    try {
+      const sectionsVals = Object.values(form.sections || {});
     const issueSections = isWarehouseAccountingMode
-      ? Object.entries(form.sections)
+      ? Object.entries(form.sections || {})
           .filter(([k, s]) => k.startsWith("wh") && s.hasIssue)
           .map(([, s]) => s)
       : isProcurementMode
-        ? Object.entries(form.sections)
+        ? Object.entries(form.sections || {})
             .filter(([k, s]) => k.startsWith("pm") && s.hasIssue)
             .map(([, s]) => s)
       : sectionsVals.filter((item) => item.hasIssue);
@@ -3248,10 +3731,10 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
         : isProcurementMode
           ? buildProcurementWarningChips(opsScore)
         : buildOpsWarningChips(opsScore, form.sections, form.header);
-    const chiaPlan = Number(form.sections.chiaSuat.distributedPlan || 0);
-    const chiaActual = Number(form.sections.chiaSuat.distributedActual || 0);
+    const chiaPlan = Number(form.sections?.chiaSuat?.distributedPlan || 0);
+    const chiaActual = Number(form.sections?.chiaSuat?.distributedActual || 0);
     const shortage = chiaPlan > chiaActual ? chiaPlan - chiaActual : 0;
-    const delayMinutes = Number(form.sections.phucVu.delayMinutes || 0);
+    const delayMinutes = Number(form.sections?.phucVu?.delayMinutes || 0);
 
     return {
       overallTone,
@@ -3264,16 +3747,49 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
       delayMinutes,
       opsScore,
     };
+    } catch (error) {
+      if (isManagementMode) console.error("MANAGEMENT CRASH:", error);
+      return {
+        overallTone: "green",
+        overallLabel: "Xuất sắc",
+        issueSectionCount: 0,
+        complaints: 0,
+        warnings: [],
+        topSource: "Không có",
+        shortage: 0,
+        delayMinutes: 0,
+        opsScore: execView.opsScore,
+      };
+    }
   }, [form.sections, form.header, execView, isKitchenMode, isWarehouseAccountingMode, isProcurementMode]);
 
   const handleHeaderChange = (key, value) => {
-    setForm((prev) => ({
-      ...prev,
-      header: {
+    setForm((prev) => {
+      const nextHeader = {
         ...prev.header,
         [key]: value,
-      },
-    }));
+      };
+      const nextSections =
+        key === "reportDate" && isWarehouseAccountingMode
+          ? Object.fromEntries(
+              Object.entries(prev.sections).map(([sectionKey, sectionValue]) => [
+                sectionKey,
+                sectionKey.startsWith("wh")
+                  ? applyDerivedSectionState(sectionKey, sectionValue, value)
+                  : sectionValue,
+              ])
+            )
+          : prev.sections;
+      setTabHeaders((prevMap) => ({
+        ...prevMap,
+        [currentTabKey]: nextHeader,
+      }));
+      return {
+        ...prev,
+        header: nextHeader,
+        sections: nextSections,
+      };
+    });
     setErrors((prev) => {
       if (!prev.header) return prev;
       return {
@@ -3283,44 +3799,70 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
     });
   };
 
+  const applyDerivedSectionState = (sectionKey, nextSection, reportDate) => {
+    if (sectionKey === "bepChayHangPhatSinh") {
+      return syncSectionStatusFromIssue(syncChayHangDerivedSection(nextSection));
+    }
+    if (sectionKey.startsWith("wh")) {
+      return syncWarehouseAccountingSection(nextSection, sectionKey, reportDate || "");
+    }
+    if (sectionKey.startsWith("pm")) {
+      return syncProcurementSection(nextSection, sectionKey);
+    }
+    return syncSectionStatusFromIssue(nextSection);
+  };
+
+  const handleIssueToggle = (sectionKey, nextValue) => {
+    setForm((prev) => {
+      const current = prev.sections[sectionKey];
+      const baseSection = nextValue
+        ? { ...current, hasIssue: true }
+        : resetSectionDetailState(sectionKey, current);
+      const nextSection = applyDerivedSectionState(sectionKey, baseSection, prev.header.reportDate);
+
+      return {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          [sectionKey]: nextSection,
+        },
+      };
+    });
+
+    setOpenSections((prev) => ({
+      ...prev,
+      [sectionKey]: Boolean(nextValue),
+    }));
+
+    setErrors((prev) => {
+      if (!prev[sectionKey]) return prev;
+      return { ...prev, [sectionKey]: {} };
+    });
+  };
+
   const handleSectionChange = (sectionKey, fieldKey, value) => {
     setForm((prev) => {
       const current = prev.sections[sectionKey];
-      let nextSection = { ...current, [fieldKey]: value };
+      let nextSection;
 
-      if (fieldKey === "hasIssue" && value === false) {
-        nextSection.issueTitle = "";
-        nextSection.issueDetail = "";
-        nextSection.cause = "";
-        nextSection.issueSource = "";
-        nextSection.responsibility = "";
-        nextSection.issueType = "";
-        nextSection.impactLevel = "";
-        nextSection.actionTaken = "";
-        nextSection.issueOwner = "";
-        nextSection.issueDeadline = "";
-        nextSection.issueResult = "";
-        if (sectionKey === "bepChayHangPhatSinh") {
-          nextSection.chayHangRows = defaultChayHangRows();
-        }
-        if (sectionKey.startsWith("wh")) {
-          nextSection.issueRows = defaultWhIssueRows();
-        }
-        if (sectionKey.startsWith("pm")) {
-          nextSection.costRows = defaultPmCostRows();
-        }
-      }
-
-      if (sectionKey === "bepChayHangPhatSinh") {
-        nextSection = syncChayHangDerivedSection(nextSection);
-        nextSection = syncSectionStatusFromIssue(nextSection);
-      } else if (sectionKey.startsWith("wh")) {
-        nextSection = syncWarehouseAccountingSection(nextSection, sectionKey, prev.header.reportDate || "");
-      } else if (sectionKey.startsWith("pm")) {
-        nextSection = syncProcurementSection(nextSection, sectionKey);
+      if (fieldKey === "issueItems") {
+        const safeRows = (Array.isArray(value) ? value : [emptyIssueDetailRow()]).map(normalizeIssueDetailRow);
+        const first = safeRows[0] || emptyIssueDetailRow();
+        nextSection = {
+          ...current,
+          issueItems: safeRows,
+          issueTitle: first.issueTitle || "",
+          cause: first.cause || "",
+          actionTaken: first.actionTaken || "",
+          responsibility: first.responsibility || "",
+          issueDeadline: first.issueDeadline || "",
+          issueResult: first.issueResult || "",
+        };
       } else {
-        nextSection = syncSectionStatusFromIssue(nextSection);
+        nextSection = { ...current, [fieldKey]: value };
       }
+
+      nextSection = applyDerivedSectionState(sectionKey, nextSection, prev.header.reportDate);
 
       return {
         ...prev,
@@ -3342,6 +3884,7 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
 
   const validateForm = (currentForm = form) => {
     const nextErrors = {};
+    const activeSectionKeys = new Set(activeSectionConfig.flatMap((group) => group.items.map((item) => item.key)));
     const vagueBody = /\b(bị lỗi|không ổn)\b/i;
 
     const kitchenFieldQuality = (val) => {
@@ -3357,7 +3900,9 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
     if (!currentForm.header.kitchen?.trim()) nextErrors.header = { ...(nextErrors.header || {}), kitchen: "Chưa nhập bộ phận." };
     if (!currentForm.header.manager?.trim()) nextErrors.header = { ...(nextErrors.header || {}), manager: "Chưa nhập họ và tên." };
 
-    Object.entries(currentForm.sections).forEach(([key, section]) => {
+    Object.entries(currentForm.sections)
+      .filter(([key]) => activeSectionKeys.has(key))
+      .forEach(([key, section]) => {
       const sectionErrors = {};
 
       if (section.hasIssue) {
@@ -3452,18 +3997,24 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
           if (rowErrs.length) sectionErrors.procurementRowErrors = rowErrs;
           if (!section.impactLevel) sectionErrors.impactLevel = "Bắt buộc chọn mức độ.";
         } else {
-          if (!section.issueTitle?.trim()) sectionErrors.issueTitle = "Bắt buộc nhập nội dung phát sinh.";
-          if (!section.cause?.trim()) sectionErrors.cause = "Bắt buộc nhập nguyên nhân.";
-          if (!section.issueSource) sectionErrors.issueSource = "Bắt buộc chọn nguồn lỗi.";
-          if (!section.responsibility) sectionErrors.responsibility = "Bắt buộc chọn trách nhiệm.";
+          const issueRows = issueDetailRowsFromSection(section);
+          const firstIssueRow = issueRows[0] || emptyIssueDetailRow();
+          const issueTitleValue = String(firstIssueRow.issueTitle || section.issueTitle || "").trim();
+          const causeValue = String(firstIssueRow.cause || section.cause || "").trim();
+          const actionValue = String(firstIssueRow.actionTaken || section.actionTaken || "").trim();
+          const responsibilityValue = String(firstIssueRow.responsibility || section.responsibility || "").trim();
+
+          if (!issueTitleValue) sectionErrors.issueTitle = "Bắt buộc nhập nội dung phát sinh.";
+          if (!causeValue) sectionErrors.cause = "Bắt buộc nhập nguyên nhân.";
+          if (!responsibilityValue) sectionErrors.responsibility = "Bắt buộc chọn trách nhiệm.";
           if (!section.impactLevel) sectionErrors.impactLevel = "Bắt buộc chọn mức độ.";
-          if (!section.actionTaken?.trim()) sectionErrors.actionTaken = "Bắt buộc nhập hành động xử lý.";
+          if (!actionValue) sectionErrors.actionTaken = "Bắt buộc nhập hành động xử lý.";
           if (isKitchenMode && key.startsWith("bep")) {
-            const eTitle = kitchenFieldQuality(section.issueTitle);
+            const eTitle = kitchenFieldQuality(issueTitleValue);
             if (eTitle) sectionErrors.issueTitle = eTitle;
-            const eCause = kitchenFieldQuality(section.cause);
+            const eCause = kitchenFieldQuality(causeValue);
             if (eCause) sectionErrors.cause = eCause;
-            const eAct = kitchenFieldQuality(section.actionTaken);
+            const eAct = kitchenFieldQuality(actionValue);
             if (eAct) sectionErrors.actionTaken = eAct;
           }
         }
@@ -3472,17 +4023,38 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
       if (Object.keys(sectionErrors).length > 0) nextErrors[key] = sectionErrors;
     });
 
+    if (Object.keys(nextErrors).length > 0) {
+      console.warn("[BaoCaoNgay] validateForm errors:", nextErrors);
+    }
     setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    return {
+      isValid: Object.keys(nextErrors).length === 0,
+      nextErrors,
+      errorLabels: summarizeValidationErrors(nextErrors, activeSectionConfig),
+    };
   };
 
   const handleSave = (mode = "draft") => {
     const normalized = normalizeFormSnapshot(form);
-    const withExecutive = mergeAutoExecutiveIntoForm(normalized, computeOpsForForm(normalized));
+    const savedAt = new Date().toISOString();
+    const withExecutive = {
+      ...mergeAutoExecutiveIntoForm(normalized, computeOpsForForm(normalized)),
+      meta: {
+        ...(isRecord(normalized.meta) ? normalized.meta : {}),
+        tabKey: currentTabKey,
+        saveMode: mode,
+        savedAt,
+      },
+    };
 
-    const isValid = validateForm(withExecutive);
+    const { isValid, errorLabels } = validateForm(withExecutive);
     if (!isValid) {
-      setSaveMessage("Chưa lưu được. Vui lòng kiểm tra lại các mục đang báo đỏ.");
+      setSaveState("");
+      setSaveMessage(
+        errorLabels.length
+          ? `Chưa lưu được. Kiểm tra: ${errorLabels.slice(0, 5).join(", ")}.`
+          : "Chưa lưu được. Vui lòng kiểm tra lại các mục đang báo đỏ."
+      );
       return;
     }
 
@@ -3490,11 +4062,52 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
 
     try {
       localStorage.setItem(saveKey, JSON.stringify(withExecutive));
+      resetReportStorageKeys(buildReportStorageKeys(form.header, currentTabKey).filter((key) => key !== saveKey));
       setPersistedSig(JSON.stringify(normalizeFormSnapshot(withExecutive)));
-      setSaveMessage(mode === "done" ? "Đã hoàn tất báo cáo ngày." : "Đã lưu nháp báo cáo.");
+      setSaveState(mode);
+      setSavedAtText(formatSavedAtText(savedAt));
+      setDetailSavedMeta(isRecord(withExecutive.meta?.detailSaved) ? withExecutive.meta.detailSaved : {});
+      setSaveMessage(mode === "done" ? "Đã lưu báo cáo ngày." : "Đã lưu nháp báo cáo.");
     } catch (error) {
       console.error("Lưu báo cáo lỗi:", error);
       setSaveMessage("Lưu lỗi. Kiểm tra lại localStorage hoặc trình duyệt.");
+    }
+  };
+
+  const saveDetailSection = (sectionKey, rowCount) => {
+    const normalized = normalizeFormSnapshot(form);
+    const savedAt = new Date().toISOString();
+    const nextDetailSaved = {
+      ...(isRecord(normalized.meta?.detailSaved) ? normalized.meta.detailSaved : {}),
+      [sectionKey]: {
+        rows: rowCount,
+        savedAt,
+      },
+    };
+    const withExecutive = {
+      ...mergeAutoExecutiveIntoForm(normalized, computeOpsForForm(normalized)),
+      meta: {
+        ...(isRecord(normalized.meta) ? normalized.meta : {}),
+        tabKey: currentTabKey,
+        saveMode: String(normalized.meta?.saveMode || saveState || "draft"),
+        savedAt,
+        detailSaved: nextDetailSaved,
+      },
+    };
+
+    try {
+      localStorage.setItem(saveKey, JSON.stringify(withExecutive));
+      resetReportStorageKeys(buildReportStorageKeys(form.header, currentTabKey).filter((key) => key !== saveKey));
+      setForm(withExecutive);
+      setPersistedSig(JSON.stringify(normalizeFormSnapshot(withExecutive)));
+      setSaveState(String(withExecutive.meta?.saveMode || "draft"));
+      setSavedAtText(formatSavedAtText(savedAt));
+      setDetailSavedMeta(nextDetailSaved);
+      setOpenSections((prev) => ({ ...prev, [sectionKey]: false }));
+      setSaveMessage(`Đã lưu chi tiết ${rowCount} dòng.`);
+    } catch (error) {
+      console.error("Lưu chi tiết báo cáo lỗi:", error);
+      setSaveMessage("Lưu chi tiết lỗi. Kiểm tra lại localStorage hoặc trình duyệt.");
     }
   };
 
@@ -3502,8 +4115,12 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
     const keepHeader = form.header;
     const next = createDefaultForm();
     next.header = { ...next.header, ...keepHeader };
+    resetReportStorageKeys(buildReportStorageKeys(form.header, currentTabKey));
     setForm(next);
     setPersistedSig(JSON.stringify(normalizeFormSnapshot(mergeAutoExecutiveIntoForm(next, computeOpsForForm(next)))));
+    setSaveState("");
+    setSavedAtText("");
+    setDetailSavedMeta({});
     setErrors({});
     setSaveMessage("Đã làm mới form của ngày hiện tại.");
   };
@@ -3544,7 +4161,11 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
               <div className="report-dash-hero-left">
                 <div className="report-dash-eyebrow">Sky Catering · Vận hành bếp</div>
                 <h1 className="report-dash-title">
-                  {isKitchenMode
+                  {isManagementMode
+                    ? "Báo cáo ngày — Quản lý"
+                    : isServiceMode
+                      ? "Báo cáo ngày — Giám sát dịch vụ"
+                    : isKitchenMode
                     ? "Báo cáo ngày — Bộ phận Bếp"
                     : isWarehouseAccountingMode
                       ? "Báo cáo ngày — Kế toán kho"
@@ -3746,7 +4367,7 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
                     <span className="report-toolbar-saas-primary-icon" aria-hidden>
                       <ToolbarIconCheck />
                     </span>
-                    <span className="report-toolbar-saas-primary-text">Báo cáo</span>
+                    <span className="report-toolbar-saas-primary-text">{saveState === "done" ? "Đã lưu" : "Báo cáo"}</span>
                   </span>
                   {showUnsavedBadge ? <span className="report-toolbar-saas-badge">Chưa lưu</span> : null}
                 </button>
@@ -3754,7 +4375,7 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
                   <span className="report-toolbar-saas-ghost-icon" aria-hidden>
                     <ToolbarIconSave />
                   </span>
-                  <span>Lưu nháp</span>
+                  <span>{saveState === "draft" ? "Nháp" : "Lưu nháp"}</span>
                 </button>
                 <button type="button" className="report-toolbar-saas-ghost" onClick={resetCurrent}>
                   <span className="report-toolbar-saas-ghost-icon" aria-hidden>
@@ -3773,6 +4394,7 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
                   <span>Lịch sử</span>
                 </button>
               </div>
+              {savedAtText ? <div className="report-toolbar-saas-msg report-toolbar-saas-msg--below">{savedAtText}</div> : null}
               {saveMessage ? <div className="report-toolbar-saas-msg report-toolbar-saas-msg--below">{saveMessage}</div> : null}
             </div>
           </div>
@@ -3920,7 +4542,7 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
                       <SectionCard
                         key={item.key}
                         title={item.title}
-                        section={form.sections[item.key]}
+                        section={form.sections?.[item.key] || createIssueState()}
                         expanded={!!openSections[item.key]}
                         onToggle={() =>
                           setOpenSections((prev) => ({
@@ -3928,6 +4550,7 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
                             [item.key]: !prev[item.key],
                           }))
                         }
+                        onIssueToggle={(nextValue) => handleIssueToggle(item.key, nextValue)}
                         onSectionChange={(fieldKey, value) => handleSectionChange(item.key, fieldKey, value)}
                         errors={errors[item.key] || {}}
                         quickFields={item.quickFields || []}
@@ -3961,6 +4584,14 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
                             : undefined
                         }
                         isWarehouseAccountingMode={isWarehouseAccountingMode}
+                        detailSavedText={
+                          detailSavedMeta[item.key]?.rows ? `Đã lưu ${detailSavedMeta[item.key].rows} dòng` : ""
+                        }
+                        onSaveDetail={
+                          item.detailVariant === "warehouseOps" || item.detailVariant === "procurementCost"
+                            ? (rowCount) => saveDetailSection(item.key, rowCount)
+                            : undefined
+                        }
                       />
                     ))}
                   </tbody>
@@ -4521,3 +5152,20 @@ export default function BaoCaoVanHanhBepForm({ initialTab = "summary" }) {
   );
 }
 
+function BaoCaoVanHanhBepFormInner({ initialTab = "summary", onTabChange }) {
+  const currentTabKey = normalizeReportTabKey(initialTab || "summary");
+
+  if (currentTabKey === "summary") {
+    return <BaoCaoSummaryDashboard onOpenTab={onTabChange} />;
+  }
+
+  return <BaoCaoReportForm initialTab={currentTabKey} />;
+}
+
+export default function BaoCaoVanHanhBepForm(props) {
+  return (
+    <ReportModuleErrorBoundary key={normalizeReportTabKey(props?.initialTab || "summary")}>
+      <BaoCaoVanHanhBepFormInner {...props} />
+    </ReportModuleErrorBoundary>
+  );
+}

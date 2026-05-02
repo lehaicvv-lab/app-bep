@@ -1717,11 +1717,13 @@
   vertical-align: middle;
 }
 
-.report-detail-row > td[colspan] {
+.report-master-table .report-detail-row > td[colspan] {
   padding: 0;
   vertical-align: top;
   background: #fff;
   border-right: none;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 /* Dashboard báo cáo — ERP: card trắng, bo 12px, typography cố định */
@@ -2208,10 +2210,14 @@
 
 /* Chi tiết phát sinh */
 .report-issue-detail-wrap {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   padding: var(--rep-sp-2) 12px var(--rep-sp-3);
   border-top: 1px solid var(--rep-n-200);
   background: #fff;
   overflow-x: auto;
+  box-sizing: border-box;
 }
 
 .report-issue-detail-caption {
@@ -2284,6 +2290,13 @@
 .report-issue-issue-table .col-issue-kpi-value {
   width: 14%;
   min-width: 140px;
+}
+
+.report-issue-issue-table .col-issue-row-action {
+  width: 56px;
+  min-width: 56px;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .report-issue-kpi-empty {
@@ -2361,6 +2374,259 @@
   padding: 4px 8px 6px;
 }
 
+.report-issue-detail-subtable {
+  background: #f0fdf4;
+  border-top: 0;
+  border-radius: 10px;
+}
+
+.report-issue-subtable-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.report-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.report-detail-actions-total {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+.report-issue-detail-subtable .report-issue-detail-caption {
+  color: #166534;
+  font-size: 10px;
+}
+
+.report-issue-detail-subtable .report-detail-table {
+  background: #f0fdf4;
+}
+
+.report-issue-detail-subtable .report-detail-table th {
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 9px;
+}
+
+.report-issue-detail-subtable .report-detail-table th,
+.report-issue-detail-subtable .report-detail-table td {
+  border-bottom: none !important;
+}
+
+.report-issue-detail-subtable .report-detail-table td,
+.report-issue-detail-subtable .report-detail-table .report-input,
+.report-issue-detail-subtable .report-detail-table .report-select,
+.report-issue-detail-subtable .report-detail-table .report-textarea,
+.report-issue-detail-subtable .report-issue-stt,
+.report-issue-detail-subtable .report-detail-table th,
+.report-issue-detail-subtable .report-detail-table td,
+.report-issue-detail-subtable .report-row-plus-btn,
+.report-issue-detail-subtable .report-row-delete-btn,
+.report-issue-detail-subtable .report-row-save-btn {
+  font-size: 9px !important;
+  color: #166534 !important;
+}
+
+.report-issue-detail-subtable .report-input::placeholder,
+.report-issue-detail-subtable .report-textarea::placeholder {
+  color: #166534;
+  opacity: 0.95;
+}
+
+.report-issue-detail-subtable .report-detail-table .report-input,
+.report-issue-detail-subtable .report-detail-table .report-select,
+.report-issue-detail-subtable .report-detail-table .report-textarea {
+  border: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  min-height: 24px !important;
+  padding: 4px 6px !important;
+  box-shadow: none !important;
+  color: #166534 !important;
+}
+
+.report-issue-detail-subtable .report-detail-table .report-textarea {
+  min-height: 24px !important;
+  resize: none;
+  line-height: 1.25;
+}
+
+.report-issue-detail-subtable .report-detail-table .report-select option {
+  color: #111827;
+}
+
+.report-issue-detail-subtable .report-issue-stt {
+  background: transparent !important;
+  border: 0 !important;
+  min-width: auto;
+  height: auto;
+  padding: 0;
+  box-shadow: none !important;
+}
+
+.report-issue-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.report-row-plus-btn {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  color: #166534;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+
+.report-row-plus-btn:hover {
+  background: rgba(22, 101, 52, 0.1);
+}
+
+.report-row-delete-btn {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  color: #166534;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.report-row-delete-btn:hover {
+  background: rgba(22, 101, 52, 0.1);
+}
+
+.report-row-save-btn {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  color: #166534;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.report-row-save-btn:hover {
+  background: rgba(22, 101, 52, 0.1);
+}
+
+.report-row-plus-btn svg,
+.report-row-save-btn svg,
+.report-row-delete-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.report-detail-scroll-wrap {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.accounting-detail-grid {
+  display: block;
+  width: max-content;
+}
+
+.accounting-detail-grid--warehouse .grid-header,
+.accounting-detail-grid--warehouse .grid-row {
+  display: grid;
+  align-items: stretch;
+  grid-template-columns: 70px minmax(300px, auto) 140px 160px 150px 220px 240px 280px 180px 180px 70px;
+}
+
+.accounting-detail-grid--procurement .grid-header,
+.accounting-detail-grid--procurement .grid-row {
+  display: grid;
+  align-items: stretch;
+  grid-template-columns: 70px minmax(300px, auto) 120px 140px 160px 180px 180px 240px 280px 180px 70px;
+}
+
+.accounting-detail-grid .grid-header {
+  background: #166534;
+  color: #fff;
+  font-weight: 700;
+  border: 1px solid #166534;
+}
+
+.accounting-detail-grid .grid-header > div {
+  padding: 10px 8px;
+  border-right: 1px solid rgba(255, 255, 255, 0.22);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.accounting-detail-grid .grid-header > div:nth-child(2),
+.accounting-detail-grid .grid-cell:nth-child(2) {
+  min-width: 300px;
+}
+
+.accounting-detail-grid .grid-row {
+  border-left: 1px solid #d1d5db;
+  border-right: 1px solid #d1d5db;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.accounting-detail-grid .grid-cell {
+  padding: 8px;
+  border-right: 1px solid #d1d5db;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.accounting-detail-grid .grid-header > div:last-child,
+.accounting-detail-grid .grid-cell:last-child {
+  border-right: 0;
+}
+
+.accounting-detail-grid .grid-cell--center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.accounting-detail-grid .report-input,
+.accounting-detail-grid .report-select,
+.accounting-detail-grid .report-textarea {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.accounting-detail-grid .report-textarea {
+  resize: vertical;
+}
+
+/* Scope kế toán kho / kế toán SX: gỡ height:100% và sizing từ .report-master-table … trong cùng <table> */
+.accounting-detail-scope .report-input,
+.accounting-detail-scope .report-select,
+.accounting-detail-scope .report-textarea {
+  height: auto;
+  display: block;
+}
+
 .report-cell-expand {
   text-align: center;
 }
@@ -2391,6 +2657,55 @@
 .report-expand-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.report-issue-toggle {
+  display: inline-flex;
+  align-items: center;
+  max-width: 180px;
+}
+
+.report-issue-pill-select {
+  width: 100%;
+  border: 1px solid var(--rep-n-300);
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.25;
+  border-radius: 999px;
+  padding: 6px 34px 6px 12px;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.report-issue-pill-select.is-clear {
+  background-color: #f8fafc;
+  color: #475569;
+}
+
+.report-issue-pill-select.is-issue {
+  background-color: #fff1f2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.report-issue-pill-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.report-issue-pill-select:focus {
+  outline: none;
+  border-color: var(--rep-primary);
+  box-shadow: 0 0 0 1px rgba(22, 101, 52, 0.18);
 }
 
 .report-master-table .report-select,
@@ -2453,6 +2768,20 @@
 .report-master-row.tone-bad .report-cell-item,
 .report-master-row.is-issue .report-cell-item {
   color: var(--rep-warn-red);
+}
+
+.report-master-row.is-issue .report-cell,
+.report-master-row.is-issue .report-input,
+.report-master-row.is-issue .report-select,
+.report-master-row.is-issue .report-textarea,
+.report-master-row.is-issue .report-expand-btn {
+  color: var(--rep-warn-red);
+}
+
+.report-master-row.is-issue .report-input::placeholder,
+.report-master-row.is-issue .report-textarea::placeholder {
+  color: var(--rep-warn-red);
+  opacity: 0.9;
 }
 
 .report-master-row.tone-ok .report-cell-expand {
@@ -2568,6 +2897,158 @@
 
 .report-ds-stack {
   margin-bottom: var(--rep-sp-3);
+}
+
+.report-summary-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rep-sp-3);
+}
+
+.report-summary-shell {
+  margin-bottom: 0;
+}
+
+.report-summary-lead {
+  margin: 0 0 var(--rep-sp-3);
+  color: var(--rep-n-600);
+  font-size: var(--rep-font-table);
+  line-height: 1.6;
+}
+
+.report-summary-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--rep-sp-3);
+}
+
+@media (max-width: 900px) {
+  .report-summary-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.report-summary-dept-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .report-summary-dept-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.report-summary-dept-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--rep-n-200);
+  background: #fff;
+  color: var(--rep-n-800);
+  text-align: left;
+  cursor: pointer;
+}
+
+.report-summary-dept-chip.is-ready {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.report-summary-dept-chip.is-missing {
+  border-color: #fecaca;
+  background: #fff7ed;
+}
+
+.report-summary-table {
+  min-width: 880px;
+}
+
+.report-summary-row.is-ready td:first-child {
+  color: #166534;
+  font-weight: 700;
+}
+
+.report-summary-row.is-missing td:first-child {
+  color: #b45309;
+  font-weight: 700;
+}
+
+.report-summary-open-btn {
+  border: 1px solid var(--rep-n-300);
+  background: #fff;
+  color: var(--rep-primary);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.report-summary-open-btn:hover {
+  background: #f0fdf4;
+}
+
+.report-summary-empty {
+  text-align: center;
+  color: var(--rep-n-500);
+  padding: 18px 12px !important;
+}
+
+.dashboard-overview-page {
+  padding: 24px;
+}
+
+.dashboard-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.dashboard-filter-actions {
+  display: flex;
+  align-items: end;
+}
+
+.dashboard-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dashboard-kpi-value {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #166534;
+  margin-top: 8px;
+}
+
+.dashboard-recent-table {
+  min-width: 960px;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-filter-grid,
+  .dashboard-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-overview-page {
+    padding: 16px;
+  }
+
+  .dashboard-filter-grid,
+  .dashboard-kpi-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .report-ds-stack--lg {
@@ -2713,6 +3194,113 @@ body,
   font-size: 14px;
   font-weight: 600;
   color: rgba(240, 253, 244, 0.86) !important;
+}
+
+.sidebar-logout-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sidebar-logout-btn:hover {
+  background: rgba(153, 27, 27, 0.55);
+  color: #fff;
+}
+
+.left-sidebar.collapsed .sidebar-logout-btn {
+  padding: 8px 0;
+  font-size: 16px;
+}
+
+.app-login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(165deg, #0f172a 0%, #14532d 48%, #052e16 100%);
+}
+
+.app-login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 28px 26px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+.app-login-brand {
+  font-size: 20px;
+  font-weight: 900;
+  color: #14532d;
+  letter-spacing: -0.02em;
+}
+
+.app-login-lead {
+  margin: 10px 0 18px;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.app-login-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.app-login-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.app-login-error {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.app-login-submit {
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #15803d 0%, #22c55e 100%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.app-login-submit:hover {
+  filter: brightness(1.05);
+}
+
+.app-login-hint {
+  margin: 14px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
 }
 
 .sidebar-menu {

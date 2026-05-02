@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import ModuleShell from "../components/ModuleShell.jsx";
-import { useMasterCatalogSnapshot } from "../systemCatalog/useMasterCatalogSnapshot.js";
 import SOP1 from "../modules/safety/sop1";
 import SOP2 from "../modules/safety/sop2";
 import SOP3 from "../modules/safety/sop3";
@@ -29,7 +27,7 @@ const SOP_OPTIONS = [
   { key: "sop9", label: "SOP9 - Hiện trường căn tin" },
 ];
 
-const AREA_FALLBACK = [
+const AREA_OPTIONS = [
   "Đồng Nai",
   "Long An",
   "Bình Dương",
@@ -521,26 +519,14 @@ function updateIncidentInStoredReport(targetIncidentId, updater) {
 }
 
 function ChecklistTab() {
-  const masterCatalog = useMasterCatalogSnapshot();
-  const areaOptions = useMemo(() => {
-    const names = masterCatalog.regions.filter((r) => !r.isDeleted).map((r) => r.name);
-    return names.length ? names : AREA_FALLBACK;
-  }, [masterCatalog]);
-
   const [selectedSop, setSelectedSop] = useState("sop1");
   const [inspectionDate, setInspectionDate] = useState(getTodayString());
-  const [inspectionArea, setInspectionArea] = useState(() => areaOptions[0] || "Đồng Nai");
+  const [inspectionArea, setInspectionArea] = useState("Đồng Nai");
   const [inspector, setInspector] = useState("");
   const [started, setStarted] = useState(false);
   const [checklistValues, setChecklistValues] = useState({});
   const [submitMessage, setSubmitMessage] = useState("");
   const [history, setHistory] = useState([]);
-
-  useEffect(() => {
-    if (areaOptions.length && !areaOptions.includes(inspectionArea)) {
-      setInspectionArea(areaOptions[0]);
-    }
-  }, [areaOptions, inspectionArea]);
 
   const currentOption = useMemo(
     () => SOP_OPTIONS.find((item) => item.key === selectedSop),
@@ -798,7 +784,7 @@ function ChecklistTab() {
               }}
               style={styles.input}
             >
-              {areaOptions.map((item) => (
+              {AREA_OPTIONS.map((item) => (
                 <option key={item} value={item}>
                   {item}
                 </option>
@@ -1105,7 +1091,7 @@ function IncidentTab() {
   }, [fromDate, toDate]);
 
   const handleRowChange = (incidentId, field, value) => {
-    updateIncidentInStoredReport(incidentId, (old) => ({
+    updateIncidentInStoredReport(targetIncidentId = incidentId, updater = (old) => ({
       ...old,
       [field]: value,
     }));
@@ -1344,30 +1330,30 @@ function SummaryTab() {
   );
 }
 
-export default function AnToan({ initialTab = "incident", onTabChange = null }) {
-  const getSafeTab = (targetTab) =>
-    TABS.some((item) => item.key === targetTab) ? targetTab : "incident";
-  const [activeTab, setActiveTab] = useState(getSafeTab(initialTab));
-
-  useEffect(() => {
-    setActiveTab(getSafeTab(initialTab));
-  }, [initialTab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (typeof onTabChange === "function") {
-      onTabChange(activeTab);
-    }
-  }, [activeTab, onTabChange]);
+export default function AnToan() {
+  const [activeTab, setActiveTab] = useState("incident");
 
   return (
-    <div className="safety-page-root ops-standard-page" style={styles.page}>
+    <div className="safety-page-root" style={styles.page}>
       <SafetyPrintStyles />
 
-      <div className="no-print">
-        <ModuleShell
-          title="Quản lý An toàn"
-          subtitle="Theo dõi checklist SOP, sự cố / vi phạm và tổng hợp KPI an toàn."
-        />
+      <div className="no-print" style={styles.headerCard}>
+        <div style={styles.title}>Quản lý An toàn</div>
+        <div style={styles.subTitle}>
+          Theo dõi checklist SOP, sự cố / vi phạm và tổng hợp KPI an toàn.
+        </div>
+      </div>
+
+      <div className="no-print" style={styles.tabRow}>
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            style={tabButtonStyle(activeTab === tab.key)}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {activeTab === "summary" && <SummaryTab />}
