@@ -22,6 +22,7 @@ import {
   restoreFromBackupPayload,
   rollbackToSnapshot,
 } from "../utils/appBackup.js";
+import { getUsers } from "../services/userService.js";
 
 const PAGE_OPTIONS = [
   { key: "dashboard", label: "Dashboard" },
@@ -292,13 +293,8 @@ export default function TaiKhoan() {
   const backupInputRef = useRef(null);
 
   const fetchUsers = async () => {
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .order("created_at", { ascending: false });
-    console.log("FETCH USERS RESULT", data ?? null, error ?? null);
-    if (error) throw error;
-    return (Array.isArray(data) ? data : []).map((item) => {
+    const rows = await getUsers();
+    return rows.map((item) => {
       const mapped = mapSupabaseUser(item);
       return {
         ...mapped,

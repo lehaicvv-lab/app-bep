@@ -1,4 +1,4 @@
-import { supabase } from "../supabaseClient.js";
+import { hasSupabaseEnv, supabase, supabaseClientError } from "../supabaseClient.js";
 
 export const CURRENT_USER_KEY = "sky_current_user";
 export const LEGACY_USER_KEY = "user";
@@ -245,17 +245,21 @@ export function getCurrentUserPermissions() {
 }
 
 export async function login(username, password) {
+  if (!hasSupabaseEnv || !supabase) {
+    throw supabaseClientError || new Error("Supabase client is not configured");
+  }
+
   const cleanUsername = String(username || "").trim().toLowerCase();
   const cleanPassword = String(password || "").trim();
 
-  console.log("INPUT:", cleanUsername, cleanPassword);
+  console.log("LOGIN INPUT:", cleanUsername);
 
   const { data, error } = await supabase.rpc("login_user", {
     username_input: cleanUsername,
     password_input: cleanPassword,
   });
 
-  console.log("RPC RESULT:", data, error ?? null);
+  console.log("LOGIN RESULT:", data ?? null, error ?? null);
 
   const rpcOk =
     data === true ||
@@ -263,7 +267,7 @@ export async function login(username, password) {
     (data && typeof data === "object" && !Array.isArray(data));
 
   if (error || !rpcOk) {
-    return false;
+    throw error || new Error("Sai tài khoản hoặc mật khẩu");
   }
 
   let userData = Array.isArray(data) ? data[0] : data;
@@ -279,15 +283,15 @@ export async function login(username, password) {
     userError = result.error;
   }
 
-  console.log("USER DATA:", userData ?? null, userError ?? null);
+  console.log("DB USER:", userData ?? null, userError ?? null);
 
   if (userError || !userData) {
-    return false;
+    throw userError || new Error("Supabase did not return a user row");
   }
 
   if (userData.active === false) {
-    console.log("USER DATA:", { ...userData, loginBlocked: "inactive-user" });
-    return false;
+    console.log("DB USER:", { ...userData, loginBlocked: "inactive-user" });
+    throw new Error("Tài khoản đã bị khóa");
   }
 
   const mappedUser = mapSupabaseUser(userData);
@@ -297,12 +301,20 @@ export async function login(username, password) {
 }
 
 export async function authenticateCredentials(username, password) {
-  const ok = await login(username, password);
-  return {
-    ok,
-    user: ok ? getCurrentUser() : null,
-    message: ok ? "" : "Sai tài khoản hoặc mật khẩu",
-  };
+  try {
+    const ok = await login(username, password);
+    return {
+      ok,
+      user: ok ? getCurrentUser() : null,
+      message: "",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      user: null,
+      message: error?.message || "Sai tài khoản hoặc mật khẩu",
+    };
+  }
 }
 
 export function markSessionForUser(user) {
@@ -330,6 +342,9 @@ export function notifyAuthChanged() {
 }
 
 export async function fetchUsersProfile() {
+  if (!hasSupabaseEnv || !supabase) {
+    throw supabaseClientError || new Error("Supabase client is not configured");
+  }
   const { data, error } = await supabase
     .from(USERS_TABLE)
     .select("*")
@@ -339,6 +354,9 @@ export async function fetchUsersProfile() {
 }
 
 export async function createUserProfile(payload) {
+  if (!hasSupabaseEnv || !supabase) {
+    throw supabaseClientError || new Error("Supabase client is not configured");
+  }
   const cleanUsername = String(payload.username || "").trim().toLowerCase();
   const cleanPassword = String(payload.password || "").trim();
   if (!cleanPassword) {
@@ -373,6 +391,9 @@ export async function createUserProfile(payload) {
 }
 
 export async function updateUserProfile(id, payload) {
+  if (!hasSupabaseEnv || !supabase) {
+    throw supabaseClientError || new Error("Supabase client is not configured");
+  }
   const { data, error } = await supabase
     .from(USERS_TABLE)
     .update(payload)
@@ -384,6 +405,9 @@ export async function updateUserProfile(id, payload) {
 }
 
 export async function deleteUserProfile(id) {
+  if (!hasSupabaseEnv || !supabase) {
+    throw supabaseClientError || new Error("Supabase client is not configured");
+  }
   const { error } = await supabase.from(USERS_TABLE).delete().eq("id", id);
   if (error) throw error;
 }

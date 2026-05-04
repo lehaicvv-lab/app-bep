@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import "./styles/ops-standard.css";
 
@@ -9,6 +9,7 @@ import {
   login,
   notifyAuthChanged,
 } from "./utils/accountAuth.js";
+import { hasSupabaseEnv, supabaseClientError, supabaseProjectUrl } from "./supabaseClient.js";
 import Dashboard from "./pages/Dashboard";
 import BaoCaoVanHanhBepForm from "./pages/BaoCaoVanHanhBepForm";
 import AnToan from "./pages/AnToan";
@@ -70,7 +71,39 @@ function getPermissionContext() {
   return { pages, reportTabs };
 }
 
-function App() {
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("[AppErrorBoundary] uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="app-login-screen">
+          <div className="app-login-card">
+            <div className="app-login-brand">Sky Catering Operations</div>
+            <p className="app-login-lead">Ứng dụng gặp lỗi khi khởi tạo.</p>
+            <div className="app-login-error">
+              {this.state.error?.message || "Đã xảy ra lỗi không xác định."}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function AppInner() {
   const [authTick, setAuthTick] = useState(0);
   const [loginError, setLoginError] = useState("");
   const [page, setPage] = useState("dashboard");
@@ -96,6 +129,11 @@ function App() {
   }, [assetTab]);
 
   useEffect(() => {
+    console.error("[App] init:", {
+      hasSupabaseEnv,
+      supabaseProjectUrl,
+      clientError: supabaseClientError?.message || null,
+    });
     const bump = () => setAuthTick((t) => t + 1);
     window.addEventListener("app-bep-auth-changed", bump);
     return () => window.removeEventListener("app-bep-auth-changed", bump);
@@ -356,6 +394,14 @@ function App() {
   const sessionOk = isAuthSessionValid();
 
   useEffect(() => {
+    console.error("[App] auth state:", {
+      sessionOk,
+      currentUser: currentUser?.username || null,
+      role: currentUser?.role || null,
+    });
+  }, [sessionOk, currentUser]);
+
+  useEffect(() => {
     if (!sessionOk) return;
     if (page === "taikhoan" && currentUser?.role !== "admin") {
       setPage("dashboard");
@@ -384,15 +430,21 @@ function App() {
       setLoginError("Nhập đủ tài khoản và mật khẩu.");
       return;
     }
-    const ok = await login(username, password);
-    const current = getCurrentUser();
-    console.log("[login] auth result:", {
-      ok,
-      username: current?.username || "",
-      role: current?.role || "",
-    });
-    if (!ok) {
-      setLoginError("Sai tài khoản hoặc mật khẩu");
+    try {
+      const ok = await login(username, password);
+      const current = getCurrentUser();
+      console.log("[login] auth result:", {
+        ok,
+        username: current?.username || "",
+        role: current?.role || "",
+      });
+      if (!ok) {
+        setLoginError("Sai tài khoản hoặc mật khẩu");
+        return;
+      }
+    } catch (error) {
+      console.error("[login] error:", error);
+      setLoginError(error?.message || "Sai tài khoản hoặc mật khẩu");
       return;
     }
     setLoginError("");
@@ -473,6 +525,9 @@ function App() {
         <form className="app-login-card" onSubmit={handleLoginSubmit}>
           <div className="app-login-brand">Sky Catering Operations</div>
           <p className="app-login-lead">Đăng nhập để tiếp tục.</p>
+          {!hasSupabaseEnv && supabaseClientError ? (
+            <div className="app-login-error">{supabaseClientError.message}</div>
+          ) : null}
           <label className="app-login-label">
             Tài khoản
             <input className="app-login-input" name="username" autoComplete="username" />
@@ -841,4 +896,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AppErrorBoundary>
+      <AppInner />
+    </AppErrorBoundary>
+  );
+}
