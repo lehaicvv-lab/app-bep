@@ -1,8 +1,8 @@
-import { hasSupabaseEnv, supabase } from "../services/supabase.js";
+import { supabase } from "../supabaseClient.js";
 
-export const ACCOUNT_STORAGE_KEY = "app_bep_accounts_v2";
-export const CURRENT_USER_KEY = "currentUser";
-const LOCAL_ADMIN_ID = "local-admin";
+export const CURRENT_USER_KEY = "sky_current_user";
+export const LEGACY_USER_KEY = "user";
+const USERS_TABLE = "users";
 
 const FULL_ACCESS = {
   pages: {
@@ -56,6 +56,43 @@ const PERMISSION_KEY_MAP = {
   danhmuc: { section: "pages", key: "danhmuc" },
 };
 
+const MODULE_KEYS = [
+  "dashboard",
+  "baocao",
+  "summary",
+  "management",
+  "service",
+  "accounting",
+  "warehouse",
+  "bep",
+  "doixe",
+  "thietbi",
+  "antoan",
+  "nhansu",
+  "bieumau",
+  "danhmuc",
+  "taikhoan",
+];
+
+const MANAGER_OPERATION_MODULES = [
+  "dashboard",
+  "baocao",
+  "summary",
+  "management",
+  "service",
+  "accounting",
+  "warehouse",
+  "bep",
+  "doixe",
+  "thietbi",
+  "antoan",
+  "nhansu",
+  "bieumau",
+  "danhmuc",
+];
+
+const DEFAULT_STAFF_MODULES = ["dashboard", "baocao", "summary"];
+
 function clonePermissions(source = FULL_ACCESS) {
   return {
     pages: { ...source.pages },
@@ -78,63 +115,41 @@ function emptyPermissions() {
   return base;
 }
 
-function readLocalAccounts() {
-  try {
-    const raw = localStorage.getItem(ACCOUNT_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+function normalizeModules(modules, role = "", permissions = null) {
+  if (role === "admin") return [...MODULE_KEYS];
+  if (role === "manager") {
+    if (Array.isArray(modules) && modules.length) {
+      return Array.from(
+        new Set([...MANAGER_OPERATION_MODULES, ...modules.map((item) => String(item || "").trim().toLowerCase())])
+      );
+    }
+    return [...MANAGER_OPERATION_MODULES];
   }
-}
-
-function buildLocalAdminUser() {
-  return {
-    id: LOCAL_ADMIN_ID,
-    username: "admin",
-    password: "123456",
-    full_name: "Administrator",
-    role: "admin",
-    permissions: clonePermissions(FULL_ACCESS),
-    active: true,
-    created_at: new Date().toISOString(),
-  };
-}
-
-function ensureLocalFallbackAccounts() {
-  const rows = readLocalAccounts();
-  if (rows.length > 0) return rows;
-  const seeded = [buildLocalAdminUser()];
-  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(seeded));
-  return seeded;
-}
-
-function saveLocalAccounts(rows) {
-  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(rows));
-}
-
-function readStoredCurrentUser() {
-  try {
-    const raw = sessionStorage.getItem(CURRENT_USER_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
+  if (Array.isArray(modules) && modules.length) {
+    return Array.from(
+      new Set(
+        modules
+          .map((item) => String(item || "").trim().toLowerCase())
+          .filter((item) => MODULE_KEYS.includes(item) || item in PERMISSION_KEY_MAP)
+      )
+    );
   }
+  if (permissions) {
+    return permissionsToModules(permissions, role);
+  }
+  return [...DEFAULT_STAFF_MODULES];
 }
 
-export function normalizePermissions(input, role = "") {
+export function normalizePermissions(input, role = "", modulesOverride = null) {
   if (role === "admin") return clonePermissions(FULL_ACCESS);
 
-  if (Array.isArray(input)) {
+  if (Array.isArray(modulesOverride)) {
     const next = emptyPermissions();
     next.actions.view = true;
     next.actions.create = true;
     next.actions.edit = true;
     next.actions.print = true;
-    input.forEach((item) => {
+    modulesOverride.forEach((item) => {
       const token = String(item || "").trim().toLowerCase();
       const mapped = PERMISSION_KEY_MAP[token];
       if (!mapped) return;
@@ -152,6 +167,10 @@ export function normalizePermissions(input, role = "") {
       next.reportTabs.summary = true;
     }
     return next;
+  }
+
+  if (Array.isArray(input)) {
+    return normalizePermissions(null, role, input);
   }
 
   if (input && typeof input === "object") {
@@ -174,13 +193,41 @@ export function normalizePermissions(input, role = "") {
   return emptyPermissions();
 }
 
+export function permissionsToModules(permissions, role = "staff") {
+  if (role === "admin") return [...MODULE_KEYS];
+  const normalized = normalizePermissions(permissions, role);
+  const modules = [];
+  Object.entries(normalized.pages || {}).forEach(([key, value]) => {
+    if (!value) return;
+    modules.push(key === "baocaongay" ? "baocao" : key);
+  });
+  Object.entries(normalized.reportTabs || {}).forEach(([key, value]) => {
+    if (value) modules.push(key);
+  });
+  return Array.from(new Set(modules.filter(Boolean)));
+}
+
+function readStoredCurrentUser() {
+  try {
+    const raw = localStorage.getItem(CURRENT_USER_KEY) || localStorage.getItem(LEGACY_USER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function mapSupabaseUser(row) {
   if (!row) return null;
-  const permissions = normalizePermissions(row.permissions, row.role);
+  const modules = normalizeModules(row.modules, row.role, row.permissions);
+  const permissions = normalizePermissions(row.permissions, row.role, modules);
   return {
     ...row,
+    modules,
     permissions,
     fullName: row.full_name || row.fullName || "",
+    area: row.area || "",
     active: row.active !== false,
   };
 }
@@ -189,51 +236,93 @@ export function getCurrentUser() {
   return mapSupabaseUser(readStoredCurrentUser());
 }
 
+export function isLoggedIn() {
+  return Boolean(getCurrentUser());
+}
+
 export function getCurrentUserPermissions() {
   return getCurrentUser()?.permissions || emptyPermissions();
 }
 
+export async function login(username, password) {
+  const cleanUsername = String(username || "").trim().toLowerCase();
+  const cleanPassword = String(password || "").trim();
+
+  console.log("INPUT:", cleanUsername, cleanPassword);
+
+  const { data, error } = await supabase.rpc("login_user", {
+    username_input: cleanUsername,
+    password_input: cleanPassword,
+  });
+
+  console.log("RPC RESULT:", data, error ?? null);
+
+  const rpcOk =
+    data === true ||
+    (Array.isArray(data) && data.length > 0) ||
+    (data && typeof data === "object" && !Array.isArray(data));
+
+  if (error || !rpcOk) {
+    return false;
+  }
+
+  let userData = Array.isArray(data) ? data[0] : data;
+  let userError = null;
+
+  if (!userData || typeof userData !== "object" || !("username" in userData)) {
+    const result = await supabase
+      .from(USERS_TABLE)
+      .select("*")
+      .ilike("username", cleanUsername)
+      .single();
+    userData = result.data;
+    userError = result.error;
+  }
+
+  console.log("USER DATA:", userData ?? null, userError ?? null);
+
+  if (userError || !userData) {
+    return false;
+  }
+
+  if (userData.active === false) {
+    console.log("USER DATA:", { ...userData, loginBlocked: "inactive-user" });
+    return false;
+  }
+
+  const mappedUser = mapSupabaseUser(userData);
+  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(mappedUser));
+  localStorage.setItem(LEGACY_USER_KEY, JSON.stringify(mappedUser));
+  return true;
+}
+
 export async function authenticateCredentials(username, password) {
-  if (!hasSupabaseEnv || !supabase) {
-    console.log("[auth] Supabase ENV missing -> using local fallback auth");
-    const localRows = ensureLocalFallbackAccounts();
-    const matched = localRows.find(
-      (row) =>
-        row.active !== false &&
-        String(row.username || "").trim().toLowerCase() === String(username || "").trim().toLowerCase() &&
-        String(row.password || "") === String(password || "")
-    );
-    if (!matched) return { ok: false, message: "Sai tài khoản hoặc mật khẩu" };
-    return { ok: true, user: mapSupabaseUser(matched) };
-  }
-
-  const { data, error } = await supabase
-    .from("users_profile")
-    .select("*")
-    .eq("username", username)
-    .eq("password", password)
-    .eq("active", true)
-    .single();
-
-  if (error || !data) {
-    return { ok: false, message: "Sai tài khoản hoặc mật khẩu" };
-  }
-
-  return { ok: true, user: mapSupabaseUser(data) };
+  const ok = await login(username, password);
+  return {
+    ok,
+    user: ok ? getCurrentUser() : null,
+    message: ok ? "" : "Sai tài khoản hoặc mật khẩu",
+  };
 }
 
 export function markSessionForUser(user) {
-  const normalized = mapSupabaseUser(user);
-  sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(normalized));
+  const mappedUser = mapSupabaseUser(user);
+  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(mappedUser));
+  localStorage.setItem(LEGACY_USER_KEY, JSON.stringify(mappedUser));
+}
+
+export function logout() {
+  localStorage.removeItem(CURRENT_USER_KEY);
+  localStorage.removeItem(LEGACY_USER_KEY);
 }
 
 export function clearAuthSession() {
-  sessionStorage.removeItem(CURRENT_USER_KEY);
+  logout();
 }
 
 export function isAuthSessionValid() {
   const current = getCurrentUser();
-  return !!(current && current.active);
+  return Boolean(current && current.active);
 }
 
 export function notifyAuthChanged() {
@@ -241,11 +330,8 @@ export function notifyAuthChanged() {
 }
 
 export async function fetchUsersProfile() {
-  if (!hasSupabaseEnv || !supabase) {
-    return ensureLocalFallbackAccounts().map(mapSupabaseUser);
-  }
   const { data, error } = await supabase
-    .from("users_profile")
+    .from(USERS_TABLE)
     .select("*")
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -253,41 +339,42 @@ export async function fetchUsersProfile() {
 }
 
 export async function createUserProfile(payload) {
-  if (!hasSupabaseEnv || !supabase) {
-    const rows = ensureLocalFallbackAccounts();
-    const next = {
-      id: crypto.randomUUID(),
-      username: String(payload.username || "").trim(),
-      password: String(payload.password || ""),
+  const cleanUsername = String(payload.username || "").trim().toLowerCase();
+  const cleanPassword = String(payload.password || "").trim();
+  if (!cleanPassword) {
+    throw new Error("Mật khẩu không được để trống.");
+  }
+
+  const { data, error } = await supabase.rpc("create_user", {
+    username_input: cleanUsername,
+    password_input: cleanPassword,
+  });
+
+  console.log("CREATE USER RESULT", data ?? null, error ?? null);
+  if (error) throw error;
+
+  const { data: updatedRow, error: updateError } = await supabase
+    .from(USERS_TABLE)
+    .update({
       full_name: String(payload.full_name || "").trim(),
       role: String(payload.role || "staff"),
-      permissions: payload.permissions || emptyPermissions(),
+      area: String(payload.area || "").trim(),
+      modules: Array.isArray(payload.modules) ? payload.modules : [],
       active: payload.active !== false,
-      created_at: new Date().toISOString(),
-    };
-    saveLocalAccounts([next, ...rows]);
-    return mapSupabaseUser(next);
-  }
-  const { data, error } = await supabase.from("users_profile").insert(payload).select("*").single();
-  if (error) throw error;
-  return mapSupabaseUser(data);
+    })
+    .eq("username", cleanUsername)
+    .select("*")
+    .single();
+
+  console.log("UPDATE USER RESULT", updatedRow ?? null, updateError ?? null);
+  if (updateError || !updatedRow) throw updateError || new Error("Không tạo được tài khoản.");
+
+  return mapSupabaseUser(updatedRow);
 }
 
 export async function updateUserProfile(id, payload) {
-  if (!hasSupabaseEnv || !supabase) {
-    const rows = ensureLocalFallbackAccounts();
-    let updated = null;
-    const nextRows = rows.map((row) => {
-      if (String(row.id) !== String(id)) return row;
-      updated = { ...row, ...payload };
-      return updated;
-    });
-    saveLocalAccounts(nextRows);
-    if (!updated) throw new Error("Không tìm thấy tài khoản cần cập nhật.");
-    return mapSupabaseUser(updated);
-  }
   const { data, error } = await supabase
-    .from("users_profile")
+    .from(USERS_TABLE)
     .update(payload)
     .eq("id", id)
     .select("*")
@@ -297,23 +384,12 @@ export async function updateUserProfile(id, payload) {
 }
 
 export async function deleteUserProfile(id) {
-  if (!hasSupabaseEnv || !supabase) {
-    const rows = ensureLocalFallbackAccounts();
-    saveLocalAccounts(rows.filter((row) => String(row.id) !== String(id)));
-    return;
-  }
-  const { error } = await supabase.from("users_profile").delete().eq("id", id);
+  const { error } = await supabase.from(USERS_TABLE).delete().eq("id", id);
   if (error) throw error;
 }
 
-export function permissionsToSupabasePayload(permissions) {
-  return permissions;
-}
-
-export function seedAdminIfNoAccounts() {
-  if (!hasSupabaseEnv) {
-    ensureLocalFallbackAccounts();
-  }
+export function permissionsToSupabasePayload(permissions, role = "staff") {
+  return permissionsToModules(permissions, role);
 }
 
 export function hashPassword(value) {

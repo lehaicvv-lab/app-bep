@@ -7,6 +7,7 @@ import EquipmentLogs from "./thietbi/EquipmentLogs";
 import TransferHistory from "./thietbi/TransferHistory";
 import AssetAlerts from "./thietbi/AssetAlerts";
 import LocationMaster from "./thietbi/LocationMaster";
+import { getModuleDataByRange, saveModuleData } from "../services/moduleDataService.js";
 
 const KEYS = {
   regions: "asset_regions",
@@ -17,6 +18,17 @@ const KEYS = {
   equipment: "asset_equipment_list",
   equipmentLogs: "asset_equipment_logs",
   transferHistory: "asset_transfer_history",
+};
+
+const MODULE_MAP = {
+  regions: "thietbi_regions",
+  locations: "thietbi_locations",
+  ccdcRows: "thietbi_ccdc_rows",
+  ccdcMonthly: "thietbi_ccdc_monthly",
+  ccdcReceipts: "thietbi_ccdc_receipts",
+  equipment: "thietbi_equipment",
+  equipmentLogs: "thietbi_equipment_logs",
+  transferHistory: "thietbi_transfer_history",
 };
 
 function uid() {
@@ -36,6 +48,19 @@ function readArray(key, fallback = []) {
 
 function writeArray(key, rows) {
   localStorage.setItem(key, JSON.stringify(rows));
+}
+
+function syncEquipmentDataset(module, data, site = "", department = "") {
+  return saveModuleData({
+    module,
+    record_date: new Date().toISOString().slice(0, 10),
+    site,
+    department,
+    data,
+    status: "done",
+  }).catch((error) => {
+    console.error(`[Thietbi] sync ${module} failed:`, error);
+  });
 }
 
 function monthKey(dateStr) {
@@ -245,6 +270,65 @@ export default function Thietbi({ initialTab = "overview" }) {
   });
   const [transferHistory, setTransferHistory] = useState(() => readArray(KEYS.transferHistory));
 
+  useEffect(() => {
+    let ignore = false;
+
+    const hydrate = async () => {
+      try {
+        const modules = Object.values(MODULE_MAP);
+        const results = await Promise.all(
+          modules.map((module) => getModuleDataByRange(module, "2000-01-01", "2100-12-31"))
+        );
+        if (ignore) return;
+
+        const latestByModule = Object.fromEntries(
+          modules.map((module, index) => [module, results[index]?.[0]?.data])
+        );
+
+        if (latestByModule.thietbi_regions) {
+          writeArray(KEYS.regions, latestByModule.thietbi_regions);
+          setRegions(latestByModule.thietbi_regions);
+        }
+        if (latestByModule.thietbi_locations) {
+          writeArray(KEYS.locations, latestByModule.thietbi_locations);
+          setLocations(latestByModule.thietbi_locations);
+        }
+        if (latestByModule.thietbi_ccdc_rows) {
+          writeArray(KEYS.ccdcRows, latestByModule.thietbi_ccdc_rows);
+          setCcdcRows(latestByModule.thietbi_ccdc_rows);
+        }
+        if (latestByModule.thietbi_ccdc_monthly) {
+          writeArray(KEYS.ccdcMonthly, latestByModule.thietbi_ccdc_monthly);
+          setCcdcMonthly(latestByModule.thietbi_ccdc_monthly);
+        }
+        if (latestByModule.thietbi_ccdc_receipts) {
+          writeArray(KEYS.ccdcReceipts, latestByModule.thietbi_ccdc_receipts);
+          setCcdcReceipts(latestByModule.thietbi_ccdc_receipts);
+        }
+        if (latestByModule.thietbi_equipment) {
+          writeArray(KEYS.equipment, latestByModule.thietbi_equipment);
+          setEquipmentRows(latestByModule.thietbi_equipment);
+        }
+        if (latestByModule.thietbi_equipment_logs) {
+          writeArray(KEYS.equipmentLogs, latestByModule.thietbi_equipment_logs);
+          setEquipmentLogs(latestByModule.thietbi_equipment_logs);
+        }
+        if (latestByModule.thietbi_transfer_history) {
+          writeArray(KEYS.transferHistory, latestByModule.thietbi_transfer_history);
+          setTransferHistory(latestByModule.thietbi_transfer_history);
+        }
+      } catch (error) {
+        console.error("[Thietbi] hydrate from Supabase failed:", error);
+      }
+    };
+
+    hydrate();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   const equipmentSummary = useMemo(
     () => calcEquipmentSummary(equipmentRows, equipmentLogs),
     [equipmentRows, equipmentLogs]
@@ -303,34 +387,42 @@ export default function Thietbi({ initialTab = "overview" }) {
   const saveRegions = (rows) => {
     setRegions(rows);
     writeArray(KEYS.regions, rows);
+    syncEquipmentDataset(MODULE_MAP.regions, rows);
   };
   const saveLocations = (rows) => {
     setLocations(rows);
     writeArray(KEYS.locations, rows);
+    syncEquipmentDataset(MODULE_MAP.locations, rows);
   };
   const saveCcdcRows = (rows) => {
     setCcdcRows(rows);
     writeArray(KEYS.ccdcRows, rows);
+    syncEquipmentDataset(MODULE_MAP.ccdcRows, rows);
   };
   const saveCcdcMonthly = (rows) => {
     setCcdcMonthly(rows);
     writeArray(KEYS.ccdcMonthly, rows);
+    syncEquipmentDataset(MODULE_MAP.ccdcMonthly, rows);
   };
   const saveCcdcReceipts = (rows) => {
     setCcdcReceipts(rows);
     writeArray(KEYS.ccdcReceipts, rows);
+    syncEquipmentDataset(MODULE_MAP.ccdcReceipts, rows);
   };
   const saveEquipments = (rows) => {
     setEquipmentRows(rows);
     writeArray(KEYS.equipment, rows);
+    syncEquipmentDataset(MODULE_MAP.equipment, rows);
   };
   const saveLogs = (rows) => {
     setEquipmentLogs(rows);
     writeArray(KEYS.equipmentLogs, rows);
+    syncEquipmentDataset(MODULE_MAP.equipmentLogs, rows);
   };
   const saveTransfers = (rows) => {
     setTransferHistory(rows);
     writeArray(KEYS.transferHistory, rows);
+    syncEquipmentDataset(MODULE_MAP.transferHistory, rows);
   };
 
   return (

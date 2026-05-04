@@ -5,7 +5,7 @@ import AttendanceTab from "./nhansu/AttendanceTab.jsx";
 import TimesheetTab from "./nhansu/TimesheetTab.jsx";
 import EvaluationTab from "./nhansu/EvaluationTab.jsx";
 import { todayIsoDate } from "./nhansu/utils.js";
-import { loadAttendance } from "./nhansu/storage.js";
+import { hydrateAttendanceFromSupabase, hydrateEvalMgmtFromSupabase, hydrateEvalStaffFromSupabase, loadAttendance } from "./nhansu/storage.js";
 import ModuleShell from "../components/ModuleShell.jsx";
 
 function IconSave() {
@@ -53,6 +53,14 @@ const TAB_LABELS = {
   timesheet: "Chấm công",
   evaluation: "Đánh giá",
 };
+
+function getWeekRefFromDate(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `week-${d.getFullYear()}-${String(weekNo).padStart(2, "0")}`;
+}
 
 export default function Nhansu({ initialTab = "overview" }) {
   const [tab, setTab] = useState(initialTab);
@@ -109,6 +117,30 @@ export default function Nhansu({ initialTab = "overview" }) {
     }
     return { total, present, absent };
   }, [workDate, reloadKey]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const hydrate = async () => {
+      try {
+        await hydrateAttendanceFromSupabase(workDate);
+        await hydrateEvalStaffFromSupabase("week", getWeekRefFromDate(workDate));
+        await hydrateEvalStaffFromSupabase("month", `month-${workDate.slice(0, 7)}`);
+        await hydrateEvalMgmtFromSupabase(workDate.slice(0, 7));
+        if (!ignore) {
+          setReloadKey((k) => k + 1);
+        }
+      } catch (error) {
+        console.error("[Nhansu] hydrate from Supabase failed:", error);
+      }
+    };
+
+    hydrate();
+
+    return () => {
+      ignore = true;
+    };
+  }, [workDate]);
 
   const displayDate = useMemo(() => {
     const [y, m, d] = String(workDate).split("-");

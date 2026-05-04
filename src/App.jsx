@@ -3,13 +3,11 @@ import "./App.css";
 import "./styles/ops-standard.css";
 
 import {
-  authenticateCredentials,
   clearAuthSession,
   getCurrentUser,
   isAuthSessionValid,
-  markSessionForUser,
+  login,
   notifyAuthChanged,
-  seedAdminIfNoAccounts,
 } from "./utils/accountAuth.js";
 import Dashboard from "./pages/Dashboard";
 import BaoCaoVanHanhBepForm from "./pages/BaoCaoVanHanhBepForm";
@@ -98,7 +96,6 @@ function App() {
   }, [assetTab]);
 
   useEffect(() => {
-    seedAdminIfNoAccounts();
     const bump = () => setAuthTick((t) => t + 1);
     window.addEventListener("app-bep-auth-changed", bump);
     return () => window.removeEventListener("app-bep-auth-changed", bump);
@@ -387,18 +384,17 @@ function App() {
       setLoginError("Nhập đủ tài khoản và mật khẩu.");
       return;
     }
-    const res = await authenticateCredentials(username, password);
+    const ok = await login(username, password);
+    const current = getCurrentUser();
     console.log("[login] auth result:", {
-      ok: res.ok,
-      message: res.message || "",
-      username: res.user?.username || "",
-      role: res.user?.role || "",
+      ok,
+      username: current?.username || "",
+      role: current?.role || "",
     });
-    if (!res.ok) {
-      setLoginError(res.message);
+    if (!ok) {
+      setLoginError("Sai tài khoản hoặc mật khẩu");
       return;
     }
-    markSessionForUser(res.user);
     setLoginError("");
     setPage("dashboard");
     window.history.replaceState({}, "", "/dashboard");
@@ -479,7 +475,7 @@ function App() {
           <p className="app-login-lead">Đăng nhập để tiếp tục.</p>
           <label className="app-login-label">
             Tài khoản
-            <input className="app-login-input" name="username" autoComplete="username" defaultValue="admin" />
+            <input className="app-login-input" name="username" autoComplete="username" />
           </label>
           <label className="app-login-label">
             Mật khẩu
@@ -495,7 +491,6 @@ function App() {
           <button type="submit" className="app-login-submit">
             Đăng nhập
           </button>
-          <p className="app-login-hint">Tài khoản mẫu: admin / 123456.</p>
         </form>
       </div>
     );

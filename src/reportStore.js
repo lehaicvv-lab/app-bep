@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabase } from "./supabaseClient.js";
 
 function cloneData(data) {
   return JSON.parse(JSON.stringify(data))

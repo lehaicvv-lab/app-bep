@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getModuleDataByRange, saveModuleData } from "../services/moduleDataService.js";
 
 const STORAGE_KEY = "sky_ops_doi_xe_nhat_ky_v5";
 const WEEKLY_STORAGE_KEY = "sky_ops_doi_xe_lich_tuan_v2";
@@ -12,6 +13,11 @@ const DAILY_REPORT_STORAGE_KEYS = [
   "bc_warehouse_v2",
   "bc_bep_v2",
 ];
+const MODULE_DX_DAILY = "doixe_daily_records";
+const MODULE_DX_WEEKLY = "doixe_weekly_records";
+const MODULE_DX_WEEKLY_ISSUES = "doixe_weekly_issues";
+const MODULE_DX_VEHICLE_MASTERS = "doixe_vehicle_masters";
+const MODULE_DX_INSPECTION = "doixe_inspection";
 const INCIDENT_DETAIL_SUGGESTIONS = [
   "Vá vỏ",
   "Thay bánh",
@@ -651,6 +657,16 @@ function readWeeklyVehicleMasters() {
 
 function saveWeeklyVehicleMasters(items) {
   localStorage.setItem(WEEKLY_VEHICLE_MASTER_STORAGE_KEY, JSON.stringify(items));
+  saveModuleData({
+    module: MODULE_DX_VEHICLE_MASTERS,
+    record_date: new Date().toISOString().slice(0, 10),
+    site: "vehicle-masters",
+    department: "doixe",
+    data: items,
+    status: "done",
+  }).catch((error) => {
+    console.error("[Doixe] sync vehicle masters failed:", error);
+  });
 }
 
 function createEmptyScheduleRow(date, dayLabel) {
@@ -767,6 +783,16 @@ function readRecords() {
 
 function saveRecords(records) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  saveModuleData({
+    module: MODULE_DX_DAILY,
+    record_date: new Date().toISOString().slice(0, 10),
+    site: "daily-records",
+    department: "doixe",
+    data: records,
+    status: "done",
+  }).catch((error) => {
+    console.error("[Doixe] sync daily records failed:", error);
+  });
 }
 
 function readWeeklyRecords() {
@@ -779,6 +805,16 @@ function readWeeklyRecords() {
 
 function saveWeeklyRecords(records) {
   localStorage.setItem(WEEKLY_STORAGE_KEY, JSON.stringify(records));
+  saveModuleData({
+    module: MODULE_DX_WEEKLY,
+    record_date: new Date().toISOString().slice(0, 10),
+    site: "weekly-records",
+    department: "doixe",
+    data: records,
+    status: "done",
+  }).catch((error) => {
+    console.error("[Doixe] sync weekly records failed:", error);
+  });
 }
 
 function readWeeklyIssueRecords() {
@@ -791,6 +827,16 @@ function readWeeklyIssueRecords() {
 
 function saveWeeklyIssueRecords(records) {
   localStorage.setItem(VEHICLE_WEEK_ISSUE_STORAGE_KEY, JSON.stringify(records));
+  saveModuleData({
+    module: MODULE_DX_WEEKLY_ISSUES,
+    record_date: new Date().toISOString().slice(0, 10),
+    site: "weekly-issues",
+    department: "doixe",
+    data: records,
+    status: "done",
+  }).catch((error) => {
+    console.error("[Doixe] sync weekly issues failed:", error);
+  });
 }
 
 function readInspectionRecord(date, plate) {
@@ -806,6 +852,17 @@ function saveInspectionRecord(payload) {
   const plateKey = payload.plate.trim() || payload.vehicle.trim() || "unknown";
   const key = `${VEHICLE_INSPECTION_STORAGE_PREFIX}${payload.date}_${plateKey}`;
   localStorage.setItem(key, JSON.stringify(payload));
+  saveModuleData({
+    module: MODULE_DX_INSPECTION,
+    record_date: payload.date,
+    site: plateKey,
+    department: payload.shift || "ca1",
+    area: payload.route || "",
+    data: payload,
+    status: "done",
+  }).catch((error) => {
+    console.error("[Doixe] sync inspection failed:", error);
+  });
 }
 
 function countInspectionIssues(checks) {
@@ -1901,6 +1958,55 @@ export default function Doixe({ initialTab = "nhatky", onTabChange = null }) {
   useEffect(() => {
     setTab(getSafeTab(initialTab));
   }, [initialTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let ignore = false;
+
+    const hydrate = async () => {
+      try {
+        const [dailyRows, weeklyRows, issueRows, masterRows, inspectionRows] = await Promise.all([
+          getModuleDataByRange(MODULE_DX_DAILY, "2000-01-01", "2100-12-31"),
+          getModuleDataByRange(MODULE_DX_WEEKLY, "2000-01-01", "2100-12-31"),
+          getModuleDataByRange(MODULE_DX_WEEKLY_ISSUES, "2000-01-01", "2100-12-31"),
+          getModuleDataByRange(MODULE_DX_VEHICLE_MASTERS, "2000-01-01", "2100-12-31"),
+          getModuleDataByRange(MODULE_DX_INSPECTION, "2000-01-01", "2100-12-31"),
+        ]);
+
+        if (ignore) return;
+
+        if (dailyRows[0]?.data) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(dailyRows[0].data));
+          setRecordsVersion((v) => v + 1);
+        }
+        if (weeklyRows[0]?.data) {
+          localStorage.setItem(WEEKLY_STORAGE_KEY, JSON.stringify(weeklyRows[0].data));
+          setWeeklyVersion((v) => v + 1);
+        }
+        if (issueRows[0]?.data) {
+          localStorage.setItem(VEHICLE_WEEK_ISSUE_STORAGE_KEY, JSON.stringify(issueRows[0].data));
+          setWeeklyIssueVersion((v) => v + 1);
+        }
+        if (masterRows[0]?.data) {
+          localStorage.setItem(WEEKLY_VEHICLE_MASTER_STORAGE_KEY, JSON.stringify(masterRows[0].data));
+          setVehicleMasterVersion((v) => v + 1);
+        }
+        inspectionRows.forEach((row) => {
+          const payload = row?.data;
+          if (!payload?.date) return;
+          const plateKey = String(payload.plate || payload.vehicle || row.site || "unknown").trim();
+          localStorage.setItem(`${VEHICLE_INSPECTION_STORAGE_PREFIX}${payload.date}_${plateKey}`, JSON.stringify(payload));
+        });
+      } catch (error) {
+        console.error("[Doixe] hydrate from Supabase failed:", error);
+      }
+    };
+
+    hydrate();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof onTabChange === "function") {

@@ -8,6 +8,8 @@ import SOP6 from "../modules/safety/sop6";
 import SOP7 from "../modules/safety/sop7";
 import SOP8 from "../modules/safety/sop8";
 import SOP9 from "../modules/safety/sop9";
+import { getCurrentUser } from "../utils/accountAuth.js";
+import { getModuleDataByDate, getModuleDataByRange, saveModuleData } from "../services/moduleDataService.js";
 
 const TABS = [
   { key: "incident", label: "Sự cố / vi phạm" },
@@ -58,6 +60,7 @@ const SOP_MAP = {
 };
 
 const STORAGE_PREFIX = "safety_report_v4";
+const SAFETY_MODULE_KEY = "antoan_sop";
 
 const GREEN = {
   primary: "#15803d",
@@ -490,6 +493,38 @@ function getAllStoredReports() {
   }
 }
 
+function buildSafetyStorageKey(sopKey, inspectionDate, inspectionArea) {
+  return `${STORAGE_PREFIX}_${sopKey}_${inspectionDate}_${inspectionArea}`;
+}
+
+function buildSafetyModulePayload(report) {
+  const currentUser = getCurrentUser();
+  return {
+    module: SAFETY_MODULE_KEY,
+    record_date: report.inspectionDate,
+    user_id: currentUser?.id || "",
+    username: currentUser?.username || "",
+    full_name: currentUser?.fullName || currentUser?.full_name || report.inspector || "",
+    role: currentUser?.role || "",
+    site: report.inspectionArea || "",
+    department: report.selectedSop || report.sopKey || "",
+    area: report.inspectionArea || currentUser?.area || "",
+    data: report,
+    status: "done",
+  };
+}
+
+async function syncSafetyReportsCacheFromSupabase() {
+  const rows = await getModuleDataByRange(SAFETY_MODULE_KEY, "2000-01-01", "2100-12-31");
+  rows.forEach((row) => {
+    const payload = row?.data;
+    if (!payload?.inspectionDate || !payload?.inspectionArea || !(payload?.selectedSop || payload?.sopKey)) return;
+    const key = buildSafetyStorageKey(payload.selectedSop || payload.sopKey, payload.inspectionDate, payload.inspectionArea);
+    localStorage.setItem(key, JSON.stringify(payload));
+  });
+  return rows;
+}
+
 function updateIncidentInStoredReport(targetIncidentId, updater) {
   const reports = getAllStoredReports();
 
@@ -515,6 +550,9 @@ function updateIncidentInStoredReport(targetIncidentId, updater) {
     };
 
     localStorage.setItem(report._storageKey, JSON.stringify(payload));
+    saveModuleData(buildSafetyModulePayload(payload)).catch((error) => {
+      console.error("Sync incident safety report failed:", error);
+    });
   });
 }
 
@@ -576,7 +614,13 @@ function ChecklistTab() {
     return `${STORAGE_PREFIX}_${selectedSop}_${inspectionDate}_${inspectionArea}`;
   };
 
-  const refreshHistory = () => {
+  const refreshHistory = async () => {
+    try {
+      await syncSafetyReportsCacheFromSupabase();
+    } catch (error) {
+      console.error("Load safety history from Supabase failed:", error);
+    }
+
     const rows = getAllStoredReports()
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
       .slice(0, 5)
@@ -601,30 +645,66 @@ function ChecklistTab() {
   useEffect(() => {
     if (!started) return;
 
-    const key = buildStorageKey();
-    const raw = localStorage.getItem(key);
-
-    if (raw) {
+    let ignore = false;
+    const loadReport = async () => {
       try {
-        const parsed = JSON.parse(raw);
-        setChecklistValues(parsed.checklistValues || buildInitialChecklistValues(flatRows));
-        setInspector(parsed.inspector || "");
-        setSubmitMessage(`Đã tải dữ liệu ngày ${inspectionDate} - ${inspectionArea}.`);
+        const remote = await getModuleDataByDate(SAFETY_MODULE_KEY, inspectionDate, {
+          site: inspectionArea,
+          department: selectedSop,
+          area: inspectionArea,
+        });
+        if (remote?.data) {
+          const key = buildStorageKey();
+          localStorage.setItem(key, JSON.stringify(remote.data));
+        }
       } catch (error) {
-        console.error("Load safety report error:", error);
-        setChecklistValues(buildInitialChecklistValues(flatRows));
-        setSubmitMessage("Không đọc được dữ liệu cũ, đã tạo biểu mẫu mới.");
+        console.error("Load safety report from Supabase error:", error);
       }
-    } else {
-      setChecklistValues(buildInitialChecklistValues(flatRows));
-      setSubmitMessage(`Chưa có dữ liệu cho ngày ${inspectionDate} - ${inspectionArea}.`);
-    }
+
+      const key = buildStorageKey();
+      const raw = localStorage.getItem(key);
+      if (ignore) return;
+
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          setChecklistValues(parsed.checklistValues || buildInitialChecklistValues(flatRows));
+          setInspector(parsed.inspector || "");
+          setSubmitMessage(`Đã tải dữ liệu ngày ${inspectionDate} - ${inspectionArea}.`);
+        } catch (error) {
+          console.error("Load safety report error:", error);
+          setChecklistValues(buildInitialChecklistValues(flatRows));
+          setSubmitMessage("Không đọc được dữ liệu cũ, đã tạo biểu mẫu mới.");
+        }
+      } else {
+        setChecklistValues(buildInitialChecklistValues(flatRows));
+        setSubmitMessage(`Chưa có dữ liệu cho ngày ${inspectionDate} - ${inspectionArea}.`);
+      }
+    };
+
+    loadReport();
+
+    return () => {
+      ignore = true;
+    };
   }, [inspectionDate, inspectionArea, selectedSop, started, flatRows]);
 
-  const handleStart = () => {
+  const handleStart = async () => {
+    try {
+      const remote = await getModuleDataByDate(SAFETY_MODULE_KEY, inspectionDate, {
+        site: inspectionArea,
+        department: selectedSop,
+        area: inspectionArea,
+      });
+      if (remote?.data) {
+        localStorage.setItem(buildStorageKey(), JSON.stringify(remote.data));
+      }
+    } catch (error) {
+      console.error("Load safety report from Supabase error:", error);
+    }
+
     const key = buildStorageKey();
     const raw = localStorage.getItem(key);
-
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
@@ -640,7 +720,6 @@ function ChecklistTab() {
       setChecklistValues(buildInitialChecklistValues(flatRows));
       setSubmitMessage(`Đã tạo biểu mẫu mới cho ngày ${inspectionDate} - ${inspectionArea}.`);
     }
-
     setStarted(true);
   };
 
@@ -683,7 +762,7 @@ function ChecklistTab() {
     return "";
   };
 
-  const handleSaveReport = () => {
+  const handleSaveReport = async () => {
     const validationError = validateForm();
     if (validationError) {
       setSubmitMessage(validationError);
@@ -729,7 +808,13 @@ function ChecklistTab() {
     };
 
     localStorage.setItem(key, JSON.stringify(payload));
-    setSubmitMessage("Đã lưu báo cáo đúng theo ngày kiểm tra.");
+    try {
+      await saveModuleData(buildSafetyModulePayload(payload));
+      setSubmitMessage("Đã lưu báo cáo lên hệ thống theo đúng ngày kiểm tra.");
+    } catch (error) {
+      console.error("Save safety report to Supabase error:", error);
+      setSubmitMessage("Đã lưu tạm trên máy nhưng chưa đồng bộ được lên hệ thống.");
+    }
     refreshHistory();
   };
 
@@ -1069,7 +1154,12 @@ function IncidentTab() {
   const [toDate, setToDate] = useState("");
   const [incidentRows, setIncidentRows] = useState([]);
 
-  const refreshIncidents = () => {
+  const refreshIncidents = async () => {
+    try {
+      await syncSafetyReportsCacheFromSupabase();
+    } catch (error) {
+      console.error("Load incident data from Supabase failed:", error);
+    }
     const rows = getAllStoredReports()
       .flatMap((report) => report.incidents || [])
       .filter((item) => {

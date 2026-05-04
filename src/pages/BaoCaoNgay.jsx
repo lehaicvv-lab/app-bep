@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { buildSiteSelectOptions, getShiftNames } from "../systemCatalog/masterData.js";
 import { useMasterCatalogSnapshot } from "../systemCatalog/useMasterCatalogSnapshot.js";
+import { getCurrentUser } from "../utils/accountAuth.js";
+import { getDailyReportByDate, getDailyReportsByRange, saveDailyReport } from "../services/dailyReportsService.js";
 
 class ReportModuleErrorBoundary extends React.Component {
   constructor(props) {
@@ -1546,6 +1548,17 @@ function normalizeFormSnapshot(currentForm) {
   return next;
 }
 
+function buildReportActorMeta(currentMeta = {}) {
+  const currentUser = getCurrentUser();
+  const createdAt = String(currentMeta?.created_at || currentMeta?.savedAt || "").trim() || new Date().toISOString();
+  return {
+    created_by: String(currentMeta?.created_by || currentUser?.id || "").trim(),
+    created_by_name: String(currentMeta?.created_by_name || currentUser?.full_name || currentUser?.fullName || "").trim(),
+    area: String(currentMeta?.area || currentUser?.area || "").trim(),
+    created_at: createdAt,
+  };
+}
+
 function getOpsScoreForTab(tabKey, form) {
   const currentTabKey = normalizeReportTabKey(tabKey);
   if (currentTabKey === "bep") return computeKitchenOperationalScore(form.sections, form.header);
@@ -1680,6 +1693,41 @@ function scanStoredReportEntries() {
     return String(a.label || "").localeCompare(String(b.label || ""));
   });
   return rows;
+}
+
+function buildDailyReportFilters(tabKey, header = {}, currentUser = null) {
+  return {
+    username: currentUser?.username || "",
+    module: normalizeReportTabKey(tabKey),
+    department: getDepartmentDisplayName(tabKey, header),
+    site: String(header?.site || "").trim(),
+  };
+}
+
+function buildDailyReportRowFromRemote(record) {
+  const payload = isRecord(record?.data) ? record.data : {};
+  const normalized = normalizeFormSnapshot(payload);
+  const tabKey = normalizeReportTabKey(record?.module || payload?.meta?.tabKey || "management");
+  const merged = mergeAutoExecutiveIntoForm(normalized, getOpsScoreForTab(tabKey, normalized));
+  const ops = getOpsScoreForTab(tabKey, merged);
+  return {
+    key: String(record?.id || `${record?.report_date}-${record?.username}-${tabKey}`),
+    tabKey,
+    label: REPORT_TAB_META[tabKey]?.label || tabKey,
+    department: String(record?.department || getDepartmentDisplayName(tabKey, merged.header)).trim(),
+    reportDate: String(record?.report_date || merged.header?.reportDate || "").trim(),
+    site: String(record?.site || merged.header?.site || "").trim(),
+    shift: String(merged.header?.shift || "").trim(),
+    manager: String(record?.full_name || merged.header?.manager || "").trim(),
+    score: Number(ops.score || 0),
+    grade: ops.grade?.label || "—",
+    issueCount: getIssueCountForTab(tabKey, merged.sections || {}),
+    warningCount: Array.isArray(ops.deductions) ? ops.deductions.length : 0,
+    savedAt: String(record?.updated_at || merged.meta?.savedAt || "").trim(),
+    summaryText: String(merged.managerSummary?.generalComment || "").trim(),
+    status: String(record?.status || merged.meta?.saveMode || "draft"),
+    username: String(record?.username || "").trim(),
+  };
 }
 
 /** KPI + tổng kết quản lý tự suy ra từ dữ liệu vận hành (sections + header), không nhập tay ở Nhóm D. */
@@ -3240,18 +3288,44 @@ function BaoCaoSummaryDashboard({ onOpenTab }) {
   const today = new Date().toISOString().slice(0, 10);
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedSite, setSelectedSite] = useState("");
-  const reportRows = useMemo(() => scanStoredReportEntries(), []);
+  const [reportRows, setReportRows] = useState([]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const loadRows = async () => {
+      try {
+        const remoteRows = await getDailyReportsByRange(selectedDate, selectedDate, {
+          site: selectedSite || undefined,
+        });
+        if (ignore) return;
+        const normalized = remoteRows.map(buildDailyReportRowFromRemote);
+        setReportRows(normalized);
+      } catch (error) {
+        console.error("[BaoCaoSummaryDashboard] load remote reports failed:", error);
+        if (ignore) return;
+        const fallback = scanStoredReportEntries().filter((row) => {
+          if (selectedDate && row.reportDate !== selectedDate) return false;
+          if (selectedSite && row.site !== selectedSite) return false;
+          return true;
+        });
+        setReportRows(fallback);
+      }
+    };
+
+    loadRows();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedDate, selectedSite]);
 
   const siteOptions = useMemo(() => {
     return Array.from(new Set(reportRows.map((row) => row.site).filter(Boolean))).sort((a, b) => a.localeCompare(b));
   }, [reportRows]);
 
   const filteredRows = useMemo(() => {
-    return reportRows.filter((row) => {
-      if (selectedDate && row.reportDate !== selectedDate) return false;
-      if (selectedSite && row.site !== selectedSite) return false;
-      return true;
-    });
+    return reportRows;
   }, [reportRows, selectedDate, selectedSite]);
 
   const departmentCards = useMemo(() => {
@@ -3487,6 +3561,7 @@ function BaoCaoSummaryDashboard({ onOpenTab }) {
 
 function BaoCaoReportForm({ initialTab = "management" }) {
   const currentTabKey = normalizeReportTabKey(initialTab || "summary");
+  const currentUser = getCurrentUser();
   const isManagementMode = currentTabKey === "management";
   const isServiceMode = currentTabKey === "service";
   const isKitchenMode = currentTabKey === "bep";
@@ -3602,51 +3677,101 @@ function BaoCaoReportForm({ initialTab = "management" }) {
   const showUnsavedBadge = persistedSig !== "" && currentSig !== persistedSig;
 
   useEffect(() => {
-    try {
-      const { parsed, brokenKeys } = readStoredReportSnapshot(form.header, currentTabKey);
-      if (parsed) {
-        const normalized = normalizeFormSnapshot(parsed);
-        const merged = mergeAutoExecutiveIntoForm(normalized, computeOpsForForm(normalized));
-        const savedMode = String(merged.meta?.saveMode || "");
-        const savedAt = String(merged.meta?.savedAt || "");
-        setForm(merged);
-        setTabHeaders((prev) => ({ ...prev, [currentTabKey]: { ...merged.header } }));
-        setPersistedSig(JSON.stringify(normalizeFormSnapshot(merged)));
-        setSaveState(savedMode);
-        setSavedAtText(formatSavedAtText(savedAt));
-        setDetailSavedMeta(isRecord(merged.meta?.detailSaved) ? merged.meta.detailSaved : {});
-        if (brokenKeys.length) {
-          setSaveMessage("Đã reset dữ liệu Báo cáo cũ bị lỗi cho tab hiện tại.");
+    let ignore = false;
+
+    const loadReport = async () => {
+      try {
+        const remoteRow = await getDailyReportByDate(form.header.reportDate, buildDailyReportFilters(currentTabKey, form.header, currentUser));
+        if (remoteRow?.data) {
+          const normalized = normalizeFormSnapshot(remoteRow.data);
+          const merged = mergeAutoExecutiveIntoForm(normalized, computeOpsForForm(normalized));
+          const savedMode = String(remoteRow.status || merged.meta?.saveMode || "");
+          const savedAt = String(remoteRow.updated_at || merged.meta?.savedAt || "");
+          if (ignore) return;
+          setForm(merged);
+          setTabHeaders((prev) => ({ ...prev, [currentTabKey]: { ...merged.header } }));
+          setPersistedSig(JSON.stringify(normalizeFormSnapshot(merged)));
+          setSaveState(savedMode);
+          setSavedAtText(formatSavedAtText(savedAt));
+          setDetailSavedMeta(isRecord(merged.meta?.detailSaved) ? merged.meta.detailSaved : {});
+          return;
         }
-      } else {
-        const tabHeader = buildHeaderForTab(currentTabKey, tabHeaders[currentTabKey] || {});
-        const next = {
-          ...createDefaultForm(),
-          header: tabHeader,
-        };
-        setForm(next);
-        setTabHeaders((prev) => ({ ...prev, [currentTabKey]: { ...tabHeader } }));
-        setPersistedSig(JSON.stringify(normalizeFormSnapshot(mergeAutoExecutiveIntoForm(next, computeOpsForForm(next)))));
+
+        const { parsed, brokenKeys } = readStoredReportSnapshot(form.header, currentTabKey);
+        if (parsed) {
+          const normalized = normalizeFormSnapshot(parsed);
+          const merged = mergeAutoExecutiveIntoForm(normalized, computeOpsForForm(normalized));
+          const savedMode = String(merged.meta?.saveMode || "");
+          const savedAt = String(merged.meta?.savedAt || "");
+          if (ignore) return;
+          setForm(merged);
+          setTabHeaders((prev) => ({ ...prev, [currentTabKey]: { ...merged.header } }));
+          setPersistedSig(JSON.stringify(normalizeFormSnapshot(merged)));
+          setSaveState(savedMode);
+          setSavedAtText(formatSavedAtText(savedAt));
+          setDetailSavedMeta(isRecord(merged.meta?.detailSaved) ? merged.meta.detailSaved : {});
+
+          try {
+            await saveDailyReport({
+              report_date: merged.header.reportDate,
+              user_id: currentUser?.id || merged.created_by || merged.meta?.created_by,
+              username: currentUser?.username || merged.meta?.username || merged.header?.manager || "",
+              full_name: currentUser?.fullName || currentUser?.full_name || merged.meta?.created_by_name || merged.header?.manager || "",
+              role: currentUser?.role || "",
+              module: currentTabKey,
+              department: getDepartmentDisplayName(currentTabKey, merged.header),
+              site: merged.header.site,
+              data: merged,
+              status: savedMode || "draft",
+            });
+            if (!ignore) {
+              setSaveMessage((prev) => prev || "Đã đồng bộ dữ liệu cũ từ máy lên hệ thống.");
+            }
+          } catch (syncError) {
+            console.error("Không đồng bộ được dữ liệu Báo cáo cũ lên Supabase:", syncError);
+          }
+
+          if (brokenKeys.length && !ignore) {
+            setSaveMessage("Đã reset dữ liệu Báo cáo cũ bị lỗi cho tab hiện tại.");
+          }
+        } else {
+          const tabHeader = buildHeaderForTab(currentTabKey, tabHeaders[currentTabKey] || {});
+          const next = {
+            ...createDefaultForm(),
+            header: tabHeader,
+          };
+          if (ignore) return;
+          setForm(next);
+          setTabHeaders((prev) => ({ ...prev, [currentTabKey]: { ...tabHeader } }));
+          setPersistedSig(JSON.stringify(normalizeFormSnapshot(mergeAutoExecutiveIntoForm(next, computeOpsForForm(next)))));
+          setSaveState("");
+          setSavedAtText("");
+          setDetailSavedMeta({});
+          if (brokenKeys.length) {
+            setSaveMessage("Đã reset dữ liệu Báo cáo cũ bị lỗi cho tab hiện tại.");
+          }
+        }
+      } catch (error) {
+        console.error("Không đọc được dữ liệu báo cáo:", error);
+        if (isManagementMode) console.error("MANAGEMENT CRASH:", error);
+        if (ignore) return;
+        resetReportStorageKeys(buildReportStorageKeys(form.header, currentTabKey));
+        const fallbackHeader = buildHeaderForTab(currentTabKey, tabHeaders[currentTabKey] || {});
+        const fallback = { ...createDefaultForm(), header: fallbackHeader };
+        setForm(fallback);
+        setPersistedSig("");
         setSaveState("");
         setSavedAtText("");
         setDetailSavedMeta({});
-        if (brokenKeys.length) {
-          setSaveMessage("Đã reset dữ liệu Báo cáo cũ bị lỗi cho tab hiện tại.");
-        }
+        setSaveMessage("Dữ liệu Báo cáo bị lỗi nên đã được reset riêng cho tab hiện tại.");
       }
-    } catch (error) {
-      console.error("Không đọc được dữ liệu báo cáo:", error);
-      if (isManagementMode) console.error("MANAGEMENT CRASH:", error);
-      resetReportStorageKeys(buildReportStorageKeys(form.header, currentTabKey));
-      const fallbackHeader = buildHeaderForTab(currentTabKey, tabHeaders[currentTabKey] || {});
-      const fallback = { ...createDefaultForm(), header: fallbackHeader };
-      setForm(fallback);
-      setPersistedSig("");
-      setSaveState("");
-      setSavedAtText("");
-      setDetailSavedMeta({});
-      setSaveMessage("Dữ liệu Báo cáo bị lỗi nên đã được reset riêng cho tab hiện tại.");
-    }
+    };
+
+    loadReport();
+
+    return () => {
+      ignore = true;
+    };
     // Chỉ chạy khi saveKey đổi; nhánh không có LS dùng form.header theo key hiện tại.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ phụ thuộc saveKey
   }, [saveKey]);
@@ -4034,13 +4159,16 @@ function BaoCaoReportForm({ initialTab = "management" }) {
     };
   };
 
-  const handleSave = (mode = "draft") => {
+  const handleSave = async (mode = "draft") => {
     const normalized = normalizeFormSnapshot(form);
     const savedAt = new Date().toISOString();
+    const actorMeta = buildReportActorMeta(normalized.meta);
     const withExecutive = {
       ...mergeAutoExecutiveIntoForm(normalized, computeOpsForForm(normalized)),
+      ...actorMeta,
       meta: {
         ...(isRecord(normalized.meta) ? normalized.meta : {}),
+        ...actorMeta,
         tabKey: currentTabKey,
         saveMode: mode,
         savedAt,
@@ -4063,20 +4191,33 @@ function BaoCaoReportForm({ initialTab = "management" }) {
     try {
       localStorage.setItem(saveKey, JSON.stringify(withExecutive));
       resetReportStorageKeys(buildReportStorageKeys(form.header, currentTabKey).filter((key) => key !== saveKey));
+      await saveDailyReport({
+        report_date: withExecutive.header.reportDate,
+        user_id: currentUser?.id || actorMeta.created_by,
+        username: currentUser?.username || "",
+        full_name: currentUser?.fullName || currentUser?.full_name || actorMeta.created_by_name,
+        role: currentUser?.role || "",
+        module: currentTabKey,
+        department: getDepartmentDisplayName(currentTabKey, withExecutive.header),
+        site: withExecutive.header.site,
+        data: withExecutive,
+        status: mode,
+      });
       setPersistedSig(JSON.stringify(normalizeFormSnapshot(withExecutive)));
       setSaveState(mode);
       setSavedAtText(formatSavedAtText(savedAt));
       setDetailSavedMeta(isRecord(withExecutive.meta?.detailSaved) ? withExecutive.meta.detailSaved : {});
-      setSaveMessage(mode === "done" ? "Đã lưu báo cáo ngày." : "Đã lưu nháp báo cáo.");
+      setSaveMessage(mode === "done" ? "Đã lưu báo cáo ngày lên hệ thống." : "Đã lưu nháp báo cáo lên hệ thống.");
     } catch (error) {
       console.error("Lưu báo cáo lỗi:", error);
-      setSaveMessage("Lưu lỗi. Kiểm tra lại localStorage hoặc trình duyệt.");
+      setSaveMessage("Đã lưu tạm trên máy nhưng chưa đồng bộ được lên hệ thống.");
     }
   };
 
-  const saveDetailSection = (sectionKey, rowCount) => {
+  const saveDetailSection = async (sectionKey, rowCount) => {
     const normalized = normalizeFormSnapshot(form);
     const savedAt = new Date().toISOString();
+    const actorMeta = buildReportActorMeta(normalized.meta);
     const nextDetailSaved = {
       ...(isRecord(normalized.meta?.detailSaved) ? normalized.meta.detailSaved : {}),
       [sectionKey]: {
@@ -4086,8 +4227,10 @@ function BaoCaoReportForm({ initialTab = "management" }) {
     };
     const withExecutive = {
       ...mergeAutoExecutiveIntoForm(normalized, computeOpsForForm(normalized)),
+      ...actorMeta,
       meta: {
         ...(isRecord(normalized.meta) ? normalized.meta : {}),
+        ...actorMeta,
         tabKey: currentTabKey,
         saveMode: String(normalized.meta?.saveMode || saveState || "draft"),
         savedAt,
@@ -4098,16 +4241,28 @@ function BaoCaoReportForm({ initialTab = "management" }) {
     try {
       localStorage.setItem(saveKey, JSON.stringify(withExecutive));
       resetReportStorageKeys(buildReportStorageKeys(form.header, currentTabKey).filter((key) => key !== saveKey));
+      await saveDailyReport({
+        report_date: withExecutive.header.reportDate,
+        user_id: currentUser?.id || actorMeta.created_by,
+        username: currentUser?.username || "",
+        full_name: currentUser?.fullName || currentUser?.full_name || actorMeta.created_by_name,
+        role: currentUser?.role || "",
+        module: currentTabKey,
+        department: getDepartmentDisplayName(currentTabKey, withExecutive.header),
+        site: withExecutive.header.site,
+        data: withExecutive,
+        status: String(withExecutive.meta?.saveMode || "draft"),
+      });
       setForm(withExecutive);
       setPersistedSig(JSON.stringify(normalizeFormSnapshot(withExecutive)));
       setSaveState(String(withExecutive.meta?.saveMode || "draft"));
       setSavedAtText(formatSavedAtText(savedAt));
       setDetailSavedMeta(nextDetailSaved);
       setOpenSections((prev) => ({ ...prev, [sectionKey]: false }));
-      setSaveMessage(`Đã lưu chi tiết ${rowCount} dòng.`);
+      setSaveMessage(`Đã lưu chi tiết ${rowCount} dòng lên hệ thống.`);
     } catch (error) {
       console.error("Lưu chi tiết báo cáo lỗi:", error);
-      setSaveMessage("Lưu chi tiết lỗi. Kiểm tra lại localStorage hoặc trình duyệt.");
+      setSaveMessage("Đã lưu chi tiết tạm trên máy nhưng chưa đồng bộ được lên hệ thống.");
     }
   };
 

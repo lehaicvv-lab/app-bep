@@ -1,18 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  authenticateCredentials,
   clearAuthSession,
-  createUserProfile,
   deleteUserProfile,
-  fetchUsersProfile,
   getCurrentUser,
-  hashPassword,
+  login,
+  mapSupabaseUser,
   markSessionForUser,
   notifyAuthChanged,
   normalizePermissions as normalizeRemotePermissions,
   permissionsToSupabasePayload,
   updateUserProfile,
 } from "../utils/accountAuth.js";
+import { supabase } from "../supabaseClient.js";
 import {
   createSnapshot,
   downloadBackup,
@@ -292,11 +291,27 @@ export default function TaiKhoan() {
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const backupInputRef = useRef(null);
 
+  const fetchUsers = async () => {
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .order("created_at", { ascending: false });
+    console.log("FETCH USERS RESULT", data ?? null, error ?? null);
+    if (error) throw error;
+    return (Array.isArray(data) ? data : []).map((item) => {
+      const mapped = mapSupabaseUser(item);
+      return {
+        ...mapped,
+        permissions: normalizePermissions(mapped.permissions, mapped.role),
+      };
+    });
+  };
+
   const reloadAccounts = async () => {
     setLoadingAccounts(true);
     try {
-      const rows = await fetchUsersProfile();
-      setAccounts(rows.map((item) => ({ ...item, permissions: normalizePermissions(item.permissions, item.role) })));
+      const rows = await fetchUsers();
+      setAccounts(rows);
       setCurrentUsername(getCurrentUser()?.username || "");
     } catch (error) {
       showNotice("error", error?.message || "Không tải được danh sách tài khoản từ Supabase.");
@@ -371,17 +386,50 @@ export default function TaiKhoan() {
     const preset = ROLE_PRESETS[form.role] || ROLE_PRESETS.staff;
 
     try {
-      const newAccount = await createUserProfile({
-        full_name: form.fullName.trim(),
-        username: form.username.trim(),
-        password: hashPassword(form.password.trim()),
-        role: form.role,
-        active: true,
-        permissions: permissionsToSupabasePayload(clonePermissions(preset)),
+      const createdUsername = form.username.trim().toLowerCase();
+      const createdPassword = form.password.trim();
+      const { data: createData, error: createError } = await supabase.rpc("create_user", {
+        username_input: createdUsername,
+        password_input: createdPassword,
       });
-      setAccounts((prev) => [{ ...newAccount, permissions: normalizePermissions(newAccount.permissions, newAccount.role) }, ...prev]);
+      console.log("CREATE USER RESULT", createData ?? null, createError ?? null);
+
+      if (createError) {
+        throw new Error(createError.message || "Không tạo được tài khoản trên Supabase.");
+      }
+
+      const { data: updateData, error: updateError } = await supabase
+        .from("users")
+        .update({
+          full_name: form.fullName.trim(),
+          role: form.role,
+          area: form.area.trim(),
+          active: true,
+          modules: permissionsToSupabasePayload(clonePermissions(preset), form.role),
+        })
+        .eq("username", createdUsername)
+        .select("*")
+        .single();
+      console.log("UPDATE USER RESULT", updateData ?? null, updateError ?? null);
+
+      if (updateError) {
+        throw new Error(updateError.message || "Đã tạo user nhưng không cập nhật được thông tin.");
+      }
+
+      const { data: verifyUserData, error: verifyUserError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("username", createdUsername)
+        .single();
+      console.log("VERIFY USER RESULT", verifyUserData ?? null, verifyUserError ?? null);
+
+      if (verifyUserError || !verifyUserData) {
+        throw new Error("User was not inserted into Supabase");
+      }
+
+      await reloadAccounts();
       setForm(INITIAL_FORM);
-      showNotice("success", `Đã tạo tài khoản "${newAccount.username}".`);
+      showNotice("success", `Đã tạo tài khoản "${createdUsername}".`);
     } catch (error) {
       showNotice("error", error?.message || "Không tạo được tài khoản.");
     }
@@ -408,6 +456,11 @@ export default function TaiKhoan() {
           item.id === id ? { ...item, ...updated, permissions: normalizePermissions(updated.permissions, updated.role) } : item
         )
       );
+      if (currentUsername === target.username && updated.active === false) {
+        clearAuthSession();
+        setCurrentUsername("");
+        notifyAuthChanged();
+      }
     } catch (error) {
       showNotice("error", error?.message || "Không cập nhật được trạng thái tài khoản.");
       return;
@@ -480,7 +533,7 @@ export default function TaiKhoan() {
     );
   };
 
-  const handleSwitchCurrentUser = (username) => {
+  const handleSwitchCurrentUser = async (username) => {
     if (!username) return;
     const acting = accounts.find((a) => a.username === currentUsername && a.active);
     const isAdminSession = acting?.role === "admin";
@@ -497,12 +550,12 @@ export default function TaiKhoan() {
 
     const pwd = window.prompt(`Nhập mật khẩu cho tài khoản "${username}"`);
     if (pwd == null || pwd === "") return;
-    const res = authenticateCredentials(username, pwd);
-    if (!res.ok) {
-      showNotice("error", res.message);
+    const ok = await login(username, pwd);
+    const current = getCurrentUser();
+    if (!ok || !current) {
+      showNotice("error", "Sai tài khoản hoặc mật khẩu");
       return;
     }
-    markSessionForUser(res.user);
     setCurrentUsername(username);
     notifyAuthChanged();
     showNotice("success", `Đã đăng nhập "${username}".`);
@@ -1013,7 +1066,7 @@ export default function TaiKhoan() {
                   try {
                     const updated = await updateUserProfile(permissionTarget.id, {
                       role: permissionTarget.role,
-                      permissions: permissionsToSupabasePayload(permissionTarget.permissions),
+                      modules: permissionsToSupabasePayload(permissionTarget.permissions, permissionTarget.role),
                     });
                     setAccounts((prev) =>
                       prev.map((item) =>

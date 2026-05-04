@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getDailyReportsByRange } from "../services/dailyReportsService.js";
 
 const REPORT_FORM_TABS = ["management", "service", "accounting", "warehouse", "bep"];
 const REPORT_TAB_META = {
@@ -133,6 +134,32 @@ function scanStoredReports() {
   return rows;
 }
 
+function buildRemoteRow(record) {
+  const payload = isRecord(record?.data) ? record.data : {};
+  const header = isRecord(payload.header) ? payload.header : {};
+  const sections = isRecord(payload.sections) ? payload.sections : {};
+  const tabKey = normalizeReportTabKey(record?.module || "");
+  const relevantSections = getRelevantSections(tabKey, sections);
+  const issueCount = relevantSections.filter((section) => section?.hasIssue).length;
+  const warningCount =
+    relevantSections.filter((section) => section?.status === "warning" || section?.status === "bad").length +
+    Math.max(0, Number(payload?.metrics?.complaintCount || 0));
+  return {
+    key: String(record?.id || `${record?.report_date}-${record?.username}-${tabKey}`),
+    tabKey,
+    label: REPORT_TAB_META[tabKey]?.label || tabKey,
+    department: String(record?.department || header.kitchen || REPORT_TAB_META[tabKey]?.label || tabKey).trim(),
+    reportDate: String(record?.report_date || header.reportDate || "").trim(),
+    site: String(record?.site || header.site || "").trim(),
+    shift: String(header.shift || "").trim(),
+    manager: String(record?.full_name || header.manager || "").trim(),
+    issueCount,
+    warningCount,
+    score: extractScore(payload),
+    savedAt: String(record?.updated_at || payload?.meta?.savedAt || "").trim(),
+  };
+}
+
 export default function Dashboard() {
   const today = new Date().toISOString().slice(0, 10);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -153,7 +180,32 @@ export default function Dashboard() {
     };
   }, []);
 
-  const allRows = useMemo(() => scanStoredReports(), [refreshKey]);
+  const [allRows, setAllRows] = useState([]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const loadRows = async () => {
+      try {
+        const remoteRows = await getDailyReportsByRange(fromDate || "2000-01-01", toDate || "2100-12-31", {
+          site: site || undefined,
+          module: department || undefined,
+        });
+        if (ignore) return;
+        setAllRows(remoteRows.map(buildRemoteRow));
+      } catch (error) {
+        console.error("[Dashboard] load daily reports failed:", error);
+        if (ignore) return;
+        setAllRows(scanStoredReports());
+      }
+    };
+
+    loadRows();
+
+    return () => {
+      ignore = true;
+    };
+  }, [refreshKey, fromDate, toDate, site, department]);
 
   const siteOptions = useMemo(
     () => Array.from(new Set(allRows.map((row) => row.site).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
@@ -171,10 +223,6 @@ export default function Dashboard() {
 
   const filteredRows = useMemo(() => {
     return allRows.filter((row) => {
-      if (fromDate && row.reportDate < fromDate) return false;
-      if (toDate && row.reportDate > toDate) return false;
-      if (site && row.site !== site) return false;
-      if (department && row.tabKey !== department) return false;
       return true;
     });
   }, [allRows, fromDate, toDate, site, department]);

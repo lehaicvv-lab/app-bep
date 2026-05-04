@@ -1,6 +1,7 @@
 import { STORAGE_PREFIX } from "./constants.js";
 import { loadDepartments, loadShifts, saveDepartments } from "../../systemCatalog/masterData.js";
 import { emptyAttendancePayload, ensureAttendanceShape, uid } from "./utils.js";
+import { getModuleDataByDate, getModuleDataByRange, saveModuleData } from "../../services/moduleDataService.js";
 
 function readJson(key, fallback) {
   try {
@@ -14,6 +15,12 @@ function readJson(key, fallback) {
 
 function writeJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function fireAndForget(promise, label) {
+  promise.catch((error) => {
+    console.error(`[nhansu.storage] ${label} failed:`, error);
+  });
 }
 
 export function attendanceKey(date) {
@@ -49,6 +56,17 @@ export function loadAttendance(date) {
 export function saveAttendance(payload) {
   const key = attendanceKey(payload.date);
   writeJson(key, payload);
+  fireAndForget(
+    saveModuleData({
+      module: "nhansu_attendance",
+      record_date: payload.date,
+      site: payload.shift || "",
+      department: "attendance",
+      data: payload,
+      status: "done",
+    }),
+    "save attendance"
+  );
 }
 
 export function loadDepartmentCatalog() {
@@ -86,6 +104,17 @@ export function loadEvalStaff(period, ref) {
 
 export function saveEvalStaff(payload) {
   writeJson(evalStaffKey(payload.period, payload.ref), payload);
+  fireAndForget(
+    saveModuleData({
+      module: "nhansu_eval_staff",
+      record_date: payload.period === "month" ? `${String(payload.ref).replace("month-", "")}-01` : new Date().toISOString().slice(0, 10),
+      site: payload.ref || "",
+      department: payload.period || "week",
+      data: payload,
+      status: "done",
+    }),
+    "save eval staff"
+  );
 }
 
 export function loadEvalMgmt(yearMonth) {
@@ -118,6 +147,17 @@ export function loadEvalMgmt(yearMonth) {
 
 export function saveEvalMgmt(payload) {
   writeJson(evalMgmtKey(payload.month), payload);
+  fireAndForget(
+    saveModuleData({
+      module: "nhansu_eval_mgmt",
+      record_date: `${payload.month}-01`,
+      site: payload.month || "",
+      department: "management",
+      data: payload,
+      status: "done",
+    }),
+    "save eval mgmt"
+  );
 }
 
 /** Liệt kê các ngày có file điểm danh trong localStorage */
@@ -131,4 +171,41 @@ export function listAttendanceDates() {
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) out.push(d);
   }
   return out.sort();
+}
+
+export async function hydrateAttendanceFromSupabase(date) {
+  const row = await getModuleDataByDate("nhansu_attendance", date, {
+    department: "attendance",
+  });
+  if (row?.data) {
+    writeJson(attendanceKey(date), row.data);
+    return row.data;
+  }
+  return null;
+}
+
+export async function hydrateEvalStaffFromSupabase(period, ref) {
+  const rows = await getModuleDataByRange("nhansu_eval_staff", "2000-01-01", "2100-12-31", {
+    site: ref,
+    department: period,
+  });
+  const row = rows[0];
+  if (row?.data) {
+    writeJson(evalStaffKey(period, ref), row.data);
+    return row.data;
+  }
+  return null;
+}
+
+export async function hydrateEvalMgmtFromSupabase(month) {
+  const rows = await getModuleDataByRange("nhansu_eval_mgmt", "2000-01-01", "2100-12-31", {
+    site: month,
+    department: "management",
+  });
+  const row = rows[0];
+  if (row?.data) {
+    writeJson(evalMgmtKey(month), row.data);
+    return row.data;
+  }
+  return null;
 }
